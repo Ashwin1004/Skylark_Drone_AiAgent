@@ -1,3 +1,4 @@
+from typing import Dict, Any
 from fastapi import APIRouter, HTTPException
 from app.models.schemas import ChatRequest, ChatResponse
 from app.services.agent_orchestrator import AgentOrchestrator
@@ -7,21 +8,38 @@ logger = get_logger("ChatRoute")
 router = APIRouter()
 orchestrator = AgentOrchestrator()
 
+# In-memory cache for completed analysis requests (keyed by request_id)
+completed_requests_cache: Dict[str, ChatResponse] = {}
+
 @router.post("/chat", response_model=ChatResponse)
 async def chat_endpoint(request: ChatRequest):
     """
     Main business intelligence query endpoint.
-    Receives user natural language question, coordinates intent classification, dynamic Monday.com data fetching,
-    data cleaning, deterministic analytics, and returns an explainable executive answer.
+    Supports request_id tracking to prevent duplicate calculations and recover interrupted requests.
     """
     if not request.question or not request.question.strip():
         raise HTTPException(status_code=400, detail="Question string cannot be empty.")
+
+    req_id = request.request_id
+
+    # If request_id already completed, return cached response instantly
+    if req_id and req_id in completed_requests_cache:
+        logger.info(f"Serving completed request from cache (Request ID: {req_id})")
+        return completed_requests_cache[req_id]
 
     try:
         response = await orchestrator.process_question(
             question=request.question.strip(),
             context_history=request.context_history
         )
+        
+        if req_id:
+            completed_requests_cache[req_id] = response
+            # Keep cache bounded to top 100 recent requests
+            if len(completed_requests_cache) > 100:
+                oldest_key = next(iter(completed_requests_cache))
+                del completed_requests_cache[oldest_key]
+
         return response
     except ValueError as e:
         logger.error(f"Configuration or validation error: {e}")
@@ -41,3 +59,12 @@ async def chat_endpoint(request: ChatRequest):
             status_code=500,
             detail=f"An unexpected error occurred while processing your request: {str(e)}"
         )
+
+@router.get("/chat/status/{request_id}")
+async def get_request_status(request_id: str):
+    """
+    Checks if an analysis request has completed.
+    """
+    if request_id in completed_requests_cache:
+        return {"status": "completed", "response": completed_requests_cache[request_id]}
+    return {"status": "not_found"}

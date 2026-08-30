@@ -9,7 +9,8 @@ import {
   Copy, 
   Check, 
   Square,
-  Share2
+  Share2,
+  RotateCcw
 } from 'lucide-react';
 import { Message } from '../types';
 import { WelcomeScreen } from './WelcomeScreen';
@@ -19,6 +20,7 @@ import { InvoicingPriorityCards } from './InvoicingPriorityCards';
 interface ChatInterfaceProps {
   messages: Message[];
   isLoading: boolean;
+  loadingStatusText?: string;
   onSendMessage: (message: string) => void;
   onStopGeneration?: () => void;
   onInspectMetadata: (meta: any) => void;
@@ -28,6 +30,7 @@ interface ChatInterfaceProps {
 export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   messages,
   isLoading,
+  loadingStatusText,
   onSendMessage,
   onStopGeneration,
   onInspectMetadata,
@@ -44,7 +47,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages, isLoading]);
+  }, [messages, isLoading, loadingStatusText]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -80,6 +83,13 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
     navigator.clipboard.writeText(shareUrl);
     setSharedLink(true);
     setTimeout(() => setSharedLink(false), 2500);
+  };
+
+  const handleRetryLastUserQuery = () => {
+    const lastUser = [...messages].reverse().find(m => m.role === 'user');
+    if (lastUser && lastUser.content) {
+      onSendMessage(lastUser.content);
+    }
   };
 
   if (messages.length === 0) {
@@ -196,6 +206,19 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                     >
                       {msg.content.replace(/\*\*/g, '')}
                     </ReactMarkdown>
+
+                    {/* Inline Retry Action for Interrupted Requests */}
+                    {msg.error && (
+                      <div className="pt-3">
+                        <button
+                          onClick={handleRetryLastUserQuery}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#4a3d37] hover:bg-[#3b2e2a] text-[#f5f2eb] font-semibold text-xs transition-all shadow-xs"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" />
+                          <span>Retry Analysis</span>
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -245,10 +268,11 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
 
         {/* Loading Thinking Indicator */}
         {isLoading && (
-          <div className="flex items-center gap-3 text-xs text-[#786a62] font-mono animate-pulse">
-            <div className="w-8 h-8 rounded-xl bg-[#4a3d37] flex items-center justify-center text-[#f5f2eb]">
+          <div className="flex items-center gap-3 text-xs sm:text-sm text-[#786a62] font-mono animate-pulse">
+            <div className="w-8 h-8 rounded-xl bg-[#4a3d37] flex items-center justify-center text-[#f5f2eb] shrink-0">
               <Sparkles className="w-4 h-4 text-[#e2b897] animate-spin" />
             </div>
+            <span>{loadingStatusText || 'Analyzing your business data...'}</span>
           </div>
         )}
 

@@ -5,7 +5,9 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 export async function sendChatMessage(
   question: string,
   history: Message[] = [],
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  requestId?: string,
+  onStatusUpdate?: (statusMessage: string) => void
 ): Promise<ChatResponse> {
   const contextHistory = history
     .slice(-6)
@@ -23,53 +25,91 @@ export async function sendChatMessage(
       return item;
     });
 
-  try {
-    const response = await fetch(`${API_BASE_URL}/chat`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      signal,
-      body: JSON.stringify({
-        question: question.trim(),
-        context_history: contextHistory
-      }),
-    });
+  const payload = {
+    question: question.trim(),
+    request_id: requestId || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `req_${Date.now()}`),
+    context_history: contextHistory
+  };
 
-    if (!response.ok) {
-      const errData = await response.json().catch(() => ({}));
-      let detailMsg = `Server returned status code ${response.status}`;
+  const maxRetries = 2; // 3 attempts total
+  let attempt = 0;
 
-      if (errData.detail) {
-        if (typeof errData.detail === 'string') {
-          detailMsg = errData.detail;
-        } else if (Array.isArray(errData.detail)) {
-          detailMsg = errData.detail
-            .map((item: any) => `${item.loc?.join('.') || 'field'}: ${item.msg}`)
-            .join('; ');
-        } else if (typeof errData.detail === 'object') {
-          detailMsg = JSON.stringify(errData.detail);
-        }
+  while (attempt <= maxRetries) {
+    attempt++;
+    try {
+      if (attempt > 1 && onStatusUpdate) {
+        onStatusUpdate(`Connection interrupted. Retrying analysis (Attempt ${attempt}/${maxRetries + 1})...`);
       }
-      throw new Error(detailMsg);
-    }
 
-    return await response.json();
-  } catch (error: any) {
-    if (error.name === 'AbortError') {
-      throw new Error('Generation stopped by user.');
+      const response = await fetch(`${API_BASE_URL}/chat`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        signal,
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        // Permanent client errors (400, 401, 403, 404) should not be retried
+        if (response.status >= 400 && response.status < 500 && response.status !== 429) {
+          const errData = await response.json().catch(() => ({}));
+          let msg = `Server returned HTTP ${response.status}`;
+          if (errData.detail) {
+            msg = typeof errData.detail === 'string' ? errData.detail : JSON.stringify(errData.detail);
+          }
+          throw new Error(msg);
+        }
+
+        // 5xx or 429 server/gateway errors can be retried
+        if (attempt <= maxRetries) {
+          const delay = attempt * 1200;
+          await new Promise(res => setTimeout(res, delay));
+          continue;
+        }
+
+        throw new Error("We couldn't reach the analysis service. Please try again.");
+      }
+
+      return await response.json();
+    } catch (error: any) {
+      if (error.name === 'AbortError') {
+        throw new Error('Generation stopped by user.');
+      }
+
+      // Retry network errors if attempts remaining
+      if (attempt <= maxRetries && signal && !signal.aborted) {
+        const delay = attempt * 1200;
+        await new Promise(res => setTimeout(res, delay));
+        continue;
+      }
+
+      throw error;
     }
-    const cleanMsg = typeof error.message === 'string' && error.message.trim()
-      ? error.message
-      : 'Failed to communicate with the Skylark BI server.';
-    throw new Error(cleanMsg);
+  }
+
+  throw new Error("We couldn't reach the analysis service. Please try again.");
+}
+
+export async function checkRequestStatus(requestId: string): Promise<{ status: string; response?: ChatResponse }> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/chat/status/${requestId}`);
+    if (!res.ok) return { status: 'not_found' };
+    return await res.json();
+  } catch (e) {
+    return { status: 'not_found' };
   }
 }
 
 export async function checkBackendHealth(): Promise<HealthResponse> {
   try {
-    const res = await fetch(`${API_BASE_URL}/health`);
-    if (!res.ok) throw new Error('Backend health check failed');
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 4000);
+    
+    const res = await fetch(`${API_BASE_URL}/health`, { signal: controller.signal });
+    clearTimeout(timer);
+
+    if (!res.ok) throw new Error('Backend health check returned non-200 status');
     return await res.json();
   } catch (e) {
     return {

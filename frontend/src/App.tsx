@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Sidebar, SavedConversation } from './components/Sidebar';
-import { Header } from './components/Header';
 import { OverviewView } from './components/views/OverviewView';
 import { PipelineView } from './components/views/PipelineView';
 import { SectorsView } from './components/views/SectorsView';
@@ -11,9 +10,10 @@ import { CommandPalette } from './components/CommandPalette';
 import { ConfirmModal } from './components/ConfirmModal';
 import { RenameModal } from './components/RenameModal';
 import { Message, ChatResponse, HealthResponse } from './types';
-import { sendChatMessage, checkBackendHealth } from './services/api';
+import { sendChatMessage, checkBackendHealth, checkRequestStatus } from './services/api';
 
 const STORAGE_KEY = 'skylark_saved_conversations';
+const ACTIVE_REQ_KEY = 'skylark_active_request';
 
 function generateTitle(question: string): string {
   const q = question.toLowerCase();
@@ -33,6 +33,7 @@ function generateTitle(question: string): string {
 export const App: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingStatusText, setLoadingStatusText] = useState<string>('Analyzing your business data...');
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [activeMetadata, setActiveMetadata] = useState<ChatResponse | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -84,6 +85,48 @@ export const App: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
+  // Interrupted Request Recovery on Page Reload
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(ACTIVE_REQ_KEY);
+      if (raw) {
+        const reqData = JSON.parse(raw);
+        if (reqData && reqData.query && (reqData.status === 'loading' || reqData.status === 'retrying' || reqData.status === 'connecting')) {
+          console.log('Interrupted request detected on mount. Recovering...', reqData);
+          
+          if (reqData.requestId) {
+            checkRequestStatus(reqData.requestId).then(res => {
+              if (res.status === 'completed' && res.response) {
+                const assistantMsg: Message = {
+                  id: (Date.now() + 1).toString(),
+                  role: 'assistant',
+                  content: res.response.answer,
+                  responseMetadata: res.response,
+                  timestamp: new Date().toISOString(),
+                };
+                setMessages(prev => {
+                  const existingUser = prev.some(m => m.content === reqData.query);
+                  if (!existingUser) {
+                    return [...prev, { id: Date.now().toString(), role: 'user', content: reqData.query, timestamp: new Date().toISOString() }, assistantMsg];
+                  }
+                  return [...prev, assistantMsg];
+                });
+                localStorage.removeItem(ACTIVE_REQ_KEY);
+              } else {
+                // Resume query smoothly
+                handleSendMessage(reqData.query, reqData.requestId);
+              }
+            });
+          } else {
+            handleSendMessage(reqData.query);
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Failed to recover request on reload', e);
+    }
+  }, []);
+
   // Persist conversations helper
   const persistConversations = (list: SavedConversation[]) => {
     setSavedConversations(list);
@@ -126,30 +169,68 @@ export const App: React.FC = () => {
       abortControllerRef.current = null;
     }
     setIsLoading(false);
+    localStorage.removeItem(ACTIVE_REQ_KEY);
   };
 
-  const handleSendMessage = async (query: string) => {
-    if (!query || !query.trim() || isLoading) return;
+  const handleSendMessage = async (query: string, existingRequestId?: string) => {
+    if (!query || !query.trim() || (isLoading && !existingRequestId)) return;
 
     if (activeTab !== 'ask') {
       setActiveTab('ask');
     }
 
-    const userMsg: Message = {
-      id: Date.now().toString(),
-      role: 'user',
-      content: query.trim(),
-      timestamp: new Date().toISOString(),
-    };
+    const requestId = existingRequestId || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `req_${Date.now()}`);
 
-    const nextMessages = [...messages, userMsg];
-    setMessages(nextMessages);
+    // Check if user message is already in thread
+    const userAlreadyInThread = messages.some(m => m.content.trim() === query.trim());
+    let nextMessages = messages;
+
+    if (!userAlreadyInThread) {
+      const userMsg: Message = {
+        id: Date.now().toString(),
+        role: 'user',
+        content: query.trim(),
+        timestamp: new Date().toISOString(),
+      };
+      nextMessages = [...messages, userMsg];
+      setMessages(nextMessages);
+    }
+
     setIsLoading(true);
+    setLoadingStatusText('Analyzing your business data...');
+
+    // Persist active request to localStorage for page reload resilience
+    localStorage.setItem(ACTIVE_REQ_KEY, JSON.stringify({
+      requestId,
+      conversationId: activeConversationId,
+      query: query.trim(),
+      status: 'loading',
+      timestamp: new Date().toISOString()
+    }));
+
+    // Cold start status timer
+    const coldStartTimer = setTimeout(() => {
+      setLoadingStatusText("Connecting to Skylark's analysis service...");
+    }, 4000);
+
+    const longWaitTimer = setTimeout(() => {
+      setLoadingStatusText("Analysis is taking a little longer than usual...");
+    }, 8000);
 
     abortControllerRef.current = new AbortController();
 
     try {
-      const response: ChatResponse = await sendChatMessage(query.trim(), messages, abortControllerRef.current.signal);
+      const response: ChatResponse = await sendChatMessage(
+        query.trim(),
+        messages,
+        abortControllerRef.current.signal,
+        requestId,
+        (msg) => setLoadingStatusText(msg)
+      );
+
+      clearTimeout(coldStartTimer);
+      clearTimeout(longWaitTimer);
+
       const assistantMsg: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
@@ -161,7 +242,11 @@ export const App: React.FC = () => {
       const finalMessages = [...nextMessages, assistantMsg];
       setMessages(finalMessages);
       saveConversationSession(finalMessages, activeConversationId);
+      localStorage.removeItem(ACTIVE_REQ_KEY);
     } catch (err: any) {
+      clearTimeout(coldStartTimer);
+      clearTimeout(longWaitTimer);
+
       if (err.message === 'Generation stopped by user.') {
         const stoppedMsg: Message = {
           id: (Date.now() + 1).toString(),
@@ -172,21 +257,28 @@ export const App: React.FC = () => {
         const finalMessages = [...nextMessages, stoppedMsg];
         setMessages(finalMessages);
         saveConversationSession(finalMessages, activeConversationId);
+        localStorage.removeItem(ACTIVE_REQ_KEY);
       } else {
-        const cleanErrorDetail = typeof err.message === 'string' && err.message.trim()
-          ? err.message
-          : 'The BI service could not process this request. Please verify server status.';
+        // Perform backend health check before deciding error type
+        const currentHealth = await checkBackendHealth();
+        const isBackendUp = currentHealth.status === 'healthy' || currentHealth.status === 'degraded' || currentHealth.monday_connected;
+
+        let errorText = "Analysis was interrupted. You can retry.";
+        if (!isBackendUp) {
+          errorText = "The analysis service is currently unavailable.";
+        }
 
         const errorMsg: Message = {
           id: (Date.now() + 1).toString(),
           role: 'assistant',
-          content: `⚠️ **Unable to complete the analysis**\n\n${cleanErrorDetail}\n\nPlease verify that your backend server is running.`,
+          content: errorText,
           error: true,
           timestamp: new Date().toISOString(),
         };
         const finalMessages = [...nextMessages, errorMsg];
         setMessages(finalMessages);
         saveConversationSession(finalMessages, activeConversationId);
+        localStorage.removeItem(ACTIVE_REQ_KEY);
       }
     } finally {
       setIsLoading(false);
@@ -198,6 +290,7 @@ export const App: React.FC = () => {
     setActiveTab('ask');
     setMessages([]);
     setActiveConversationId(null);
+    localStorage.removeItem(ACTIVE_REQ_KEY);
   };
 
   const handleNavigateHome = () => {
@@ -270,17 +363,35 @@ export const App: React.FC = () => {
         onToggleArchiveConversation={handleToggleArchiveConversation}
       />
 
-        {/* Main Content Area */}
-        <main className="flex-1 overflow-hidden flex flex-col relative bg-[#f3eee6]">
+      {/* Main Content Area */}
+      <main className="flex-1 overflow-hidden flex flex-col relative bg-[#f3eee6]">
+        {activeTab === 'home' && (
+          <OverviewView 
+            health={health}
+            onLaunchQuery={(query: string) => handleSendMessage(query)} 
+          />
+        )}
+        {activeTab === 'pipeline' && (
+          <PipelineView onLaunchQuery={(query: string) => handleSendMessage(query)} />
+        )}
+        {activeTab === 'sectors' && (
+          <SectorsView onLaunchQuery={(query: string) => handleSendMessage(query)} />
+        )}
+        {activeTab === 'leadership' && (
+          <LeadershipView onLaunchQuery={(query: string) => handleSendMessage(query)} />
+        )}
+        {activeTab === 'ask' && (
           <ChatInterface
             messages={messages}
             isLoading={isLoading}
+            loadingStatusText={loadingStatusText}
             onSendMessage={handleSendMessage}
             onStopGeneration={handleStopGeneration}
             onInspectMetadata={handleInspectMetadata}
             inputRef={chatInputRef}
           />
-        </main>
+        )}
+      </main>
 
       {/* Audit & Explainability Metadata Slide-over Drawer */}
       <MetadataDrawer

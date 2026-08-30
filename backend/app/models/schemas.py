@@ -4,6 +4,7 @@ from typing import List, Dict, Any, Optional
 class ChatRequest(BaseModel):
     question: str = Field(..., description="User's natural language question")
     conversation_id: Optional[str] = Field(default=None, description="Optional conversation tracking ID")
+    request_id: Optional[str] = Field(default=None, description="Unique client request tracking ID")
     context_history: Optional[List[Dict[str, Any]]] = Field(default=None, description="Recent conversation turns for follow-ups")
 
 class DataQualityReport(BaseModel):
