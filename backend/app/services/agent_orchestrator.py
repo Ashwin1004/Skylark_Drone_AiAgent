@@ -1,3 +1,4 @@
+import asyncio
 from typing import Dict, Any, List, Optional
 from app.services.monday_service import MondayService
 from app.services.data_cleaning import DataNormalizer
@@ -135,8 +136,10 @@ To provide an exact deterministic business analysis, please specify which area y
         # 2. BUSINESS QUERY EXECUTION -> Fetch Monday.com API data once
         logger.info(f"Executing Business Query pipeline for {len(detected_intents)} detected intent(s)...")
 
-        raw_deals = await self.monday_service.get_deals()
-        raw_work_orders = await self.monday_service.get_work_orders()
+        raw_deals, raw_work_orders = await asyncio.gather(
+            self.monday_service.get_deals(),
+            self.monday_service.get_work_orders()
+        )
 
         # 3. Data Normalization & Data Quality Audit
         df_deals, deals_dq = DataNormalizer.normalize_deals(raw_deals)

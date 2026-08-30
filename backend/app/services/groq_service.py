@@ -150,7 +150,7 @@ Please format a clear, founder-ready executive answer strictly adhering to the s
                     {"role": "user", "content": user_prompt}
                 ],
                 temperature=0.1,
-                max_tokens=1250
+                max_tokens=750
             )
             content = response.choices[0].message.content or ""
             content = content.replace("**", "")
@@ -215,7 +215,7 @@ Please produce a comprehensive multi-intent executive report addressing EVERY se
                     {"role": "user", "content": user_prompt}
                 ],
                 temperature=0.1,
-                max_tokens=2500
+                max_tokens=1400
             )
             content = response.choices[0].message.content or ""
             content = content.replace("**", "")

@@ -33,6 +33,7 @@ function generateTitle(question: string): string {
 export const App: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingConversationId, setLoadingConversationId] = useState<string | null>(null);
   const [loadingStatusText, setLoadingStatusText] = useState<string>('Analyzing your business data...');
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [activeMetadata, setActiveMetadata] = useState<ChatResponse | null>(null);
@@ -41,7 +42,7 @@ export const App: React.FC = () => {
   // Workspace Views: 'ask' (default AI chat) | 'home' | 'pipeline' | 'sectors' | 'leadership'
   const [activeTab, setActiveTab] = useState<string>('ask');
 
-  // Synchronously initialize saved conversations from localStorage to prevent wiping on reload
+  // Synchronously initialize saved conversations from localStorage
   const [savedConversations, setSavedConversations] = useState<SavedConversation[]>(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
@@ -111,7 +112,6 @@ export const App: React.FC = () => {
                 });
                 localStorage.removeItem(ACTIVE_REQ_KEY);
               } else {
-                // Resume query smoothly
                 handleSendMessage(reqData.query, reqData.requestId);
               }
             });
@@ -125,7 +125,7 @@ export const App: React.FC = () => {
     }
   }, []);
 
-  // Persist conversations helper with functional update & safety fallback
+  // Persist conversations helper
   const persistConversations = (list: SavedConversation[]) => {
     setSavedConversations(list);
     try {
@@ -135,7 +135,7 @@ export const App: React.FC = () => {
     }
   };
 
-  // Save current conversation session safely without losing existing conversations
+  // Save current conversation session safely
   const saveConversationSession = (newMessages: Message[], convId: string | null) => {
     if (newMessages.length === 0) return;
 
@@ -186,6 +186,7 @@ export const App: React.FC = () => {
       abortControllerRef.current = null;
     }
     setIsLoading(false);
+    setLoadingConversationId(null);
     localStorage.removeItem(ACTIVE_REQ_KEY);
   };
 
@@ -194,6 +195,11 @@ export const App: React.FC = () => {
 
     if (activeTab !== 'ask') {
       setActiveTab('ask');
+    }
+
+    const currentConvId = activeConversationId || Date.now().toString();
+    if (!activeConversationId) {
+      setActiveConversationId(currentConvId);
     }
 
     const requestId = existingRequestId || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `req_${Date.now()}`);
@@ -214,25 +220,26 @@ export const App: React.FC = () => {
     }
 
     setIsLoading(true);
+    setLoadingConversationId(currentConvId);
     setLoadingStatusText('Analyzing your business data...');
 
-    // Persist active request to localStorage for page reload resilience
+    // Persist active request to localStorage
     localStorage.setItem(ACTIVE_REQ_KEY, JSON.stringify({
       requestId,
-      conversationId: activeConversationId,
+      conversationId: currentConvId,
       query: query.trim(),
       status: 'loading',
       timestamp: new Date().toISOString()
     }));
 
-    // Cold start status timer
+    // Cold start status timers
     const coldStartTimer = setTimeout(() => {
       setLoadingStatusText("Connecting to Skylark's analysis service...");
-    }, 4000);
+    }, 3000);
 
     const longWaitTimer = setTimeout(() => {
       setLoadingStatusText("Analysis is taking a little longer than usual...");
-    }, 8000);
+    }, 6000);
 
     abortControllerRef.current = new AbortController();
 
@@ -258,7 +265,7 @@ export const App: React.FC = () => {
 
       const finalMessages = [...nextMessages, assistantMsg];
       setMessages(finalMessages);
-      saveConversationSession(finalMessages, activeConversationId);
+      saveConversationSession(finalMessages, currentConvId);
       localStorage.removeItem(ACTIVE_REQ_KEY);
     } catch (err: any) {
       clearTimeout(coldStartTimer);
@@ -273,10 +280,9 @@ export const App: React.FC = () => {
         };
         const finalMessages = [...nextMessages, stoppedMsg];
         setMessages(finalMessages);
-        saveConversationSession(finalMessages, activeConversationId);
+        saveConversationSession(finalMessages, currentConvId);
         localStorage.removeItem(ACTIVE_REQ_KEY);
       } else {
-        // Perform backend health check before deciding error type
         const currentHealth = await checkBackendHealth();
         const isBackendUp = currentHealth.status === 'healthy' || currentHealth.status === 'degraded' || currentHealth.monday_connected;
 
@@ -294,16 +300,20 @@ export const App: React.FC = () => {
         };
         const finalMessages = [...nextMessages, errorMsg];
         setMessages(finalMessages);
-        saveConversationSession(finalMessages, activeConversationId);
+        saveConversationSession(finalMessages, currentConvId);
         localStorage.removeItem(ACTIVE_REQ_KEY);
       }
     } finally {
       setIsLoading(false);
+      setLoadingConversationId(null);
       abortControllerRef.current = null;
     }
   };
 
   const handleNewChat = () => {
+    if (isLoading) {
+      handleStopGeneration();
+    }
     setActiveTab('ask');
     setMessages([]);
     setActiveConversationId(null);
@@ -315,6 +325,9 @@ export const App: React.FC = () => {
   };
 
   const handleSelectSavedConversation = (conv: SavedConversation) => {
+    if (isLoading && activeConversationId !== conv.id) {
+      handleStopGeneration();
+    }
     setActiveTab('ask');
     setActiveConversationId(conv.id);
     setMessages(conv.messages || []);
@@ -400,7 +413,7 @@ export const App: React.FC = () => {
         {activeTab === 'ask' && (
           <ChatInterface
             messages={messages}
-            isLoading={isLoading}
+            isLoading={isLoading && (!activeConversationId || activeConversationId === loadingConversationId)}
             loadingStatusText={loadingStatusText}
             onSendMessage={(query: string) => handleSendMessage(query)}
             onStopGeneration={handleStopGeneration}

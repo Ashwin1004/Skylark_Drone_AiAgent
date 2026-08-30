@@ -7,7 +7,7 @@ from app.utils.logging import get_logger
 logger = get_logger("MondayService")
 
 MONDAY_API_URL = "https://api.monday.com/v2"
-CACHE_TTL_SECONDS = 60.0
+CACHE_TTL_SECONDS = 300.0
 
 _board_cache: Dict[str, Dict[str, Any]] = {}
 
