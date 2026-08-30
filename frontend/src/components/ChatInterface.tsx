@@ -293,11 +293,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
               disabled={isLoading}
               className="w-full bg-transparent text-[#211a17] placeholder-[#a3978c] px-3 py-1.5 text-sm sm:text-base focus:outline-none resize-none max-h-40"
             />
-            <div className="flex items-center justify-between pt-2 px-2 border-t border-[#f0eae1]">
-              <span className="text-[11px] font-mono text-[#8c7f76]">
-                Shift + Enter for new line
-              </span>
-
+            <div className="flex items-center justify-end pt-2 px-2 border-t border-[#f0eae1]">
               {isLoading ? (
                 /* Stop Generation Button */
                 <button

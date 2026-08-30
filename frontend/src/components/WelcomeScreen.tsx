@@ -116,12 +116,7 @@ export const WelcomeScreen: React.FC<Props> = ({ onSelectPrompt, isLoading, inpu
             disabled={isLoading}
             className="w-full bg-transparent text-[#211a17] placeholder-[#a3978c] px-3 py-1.5 text-sm focus:outline-none resize-none"
           />
-          <div className="flex items-center justify-between pt-2.5 px-2 border-t border-[#f0eae1] text-xs text-[#786a62]">
-            <div className="flex items-center gap-2 text-[11px] font-mono text-[#8c7f76]">
-              <kbd className="px-1.5 py-0.5 rounded bg-[#f3eee6] text-[9px] border border-[#dcd4c8] text-[#4a3d37]">Enter</kbd> send
-              <span className="text-[#c7bcae]">·</span>
-              <kbd className="px-1.5 py-0.5 rounded bg-[#f3eee6] text-[9px] border border-[#dcd4c8] text-[#4a3d37]">Shift + Enter</kbd> newline
-            </div>
+          <div className="flex items-center justify-end pt-2.5 px-2 border-t border-[#f0eae1]">
             <button
               type="submit"
               disabled={!localInput.trim() || isLoading}
