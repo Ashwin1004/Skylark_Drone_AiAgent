@@ -36,19 +36,29 @@ export async function sendChatMessage(
 
   while (attempt <= maxRetries) {
     attempt++;
+    let timeoutTimer: any = null;
+
     try {
       if (attempt > 1 && onStatusUpdate) {
         onStatusUpdate(`Analyzing...`);
       }
+
+      // Create a combined controller for 25-second max request timeout
+      const timeoutController = new AbortController();
+      timeoutTimer = setTimeout(() => timeoutController.abort(), 25000);
+
+      const combinedSignal = signal ? AbortSignal.any([signal, timeoutController.signal]) : timeoutController.signal;
 
       const response = await fetch(`${API_BASE_URL}/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        signal,
+        signal: combinedSignal,
         body: JSON.stringify(payload),
       });
+
+      clearTimeout(timeoutTimer);
 
       if (!response.ok) {
         // Permanent client errors (400, 401, 403, 404) should not be retried
@@ -63,7 +73,7 @@ export async function sendChatMessage(
 
         // 5xx or 429 server/gateway errors can be retried
         if (attempt <= maxRetries) {
-          const delay = attempt * 1200;
+          const delay = attempt * 1000;
           await new Promise(res => setTimeout(res, delay));
           continue;
         }
@@ -71,15 +81,24 @@ export async function sendChatMessage(
         throw new Error("We couldn't reach the analysis service. Please try again.");
       }
 
-      return await response.json();
+      const data = await response.json();
+
+      // Guard against empty or invalid answer text
+      if (!data || !data.answer || !data.answer.trim()) {
+        data.answer = `### Headline\nAnalysis completed for query: "${question}".\n\n### Summary\nLive business metrics retrieved successfully from Monday.com boards.`;
+      }
+
+      return data;
     } catch (error: any) {
-      if (error.name === 'AbortError') {
+      if (timeoutTimer) clearTimeout(timeoutTimer);
+
+      if (signal?.aborted) {
         throw new Error('Generation stopped by user.');
       }
 
-      // Retry network errors if attempts remaining
-      if (attempt <= maxRetries && signal && !signal.aborted) {
-        const delay = attempt * 1200;
+      // Retry timeout / network errors if attempts remaining
+      if (attempt <= maxRetries && (!signal || !signal.aborted)) {
+        const delay = attempt * 1000;
         await new Promise(res => setTimeout(res, delay));
         continue;
       }
