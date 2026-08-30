@@ -1,5 +1,9 @@
 import os
+import sys
 from dotenv import load_dotenv, find_dotenv
+
+# Ensure backend directory is in sys.path for Vercel serverless execution
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 # Load environment variables FIRST before importing any routes or services
 load_dotenv(find_dotenv(usecwd=True))
@@ -17,18 +21,20 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# CORS setup with FRONTEND_URL support
-frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173")
+# CORS setup for local development and production Vercel frontend
+frontend_url = os.getenv("FRONTEND_URL")
 origins = [
-    frontend_url,
     "http://localhost:5173",
     "http://127.0.0.1:5173",
-    "*"
+    "http://localhost:3000",
 ]
+if frontend_url:
+    origins.append(frontend_url)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=origins if frontend_url else (origins + ["*"]),
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -39,6 +45,7 @@ app.include_router(health.router, prefix="/api", tags=["Health & Metadata"])
 app.include_router(chat.router, prefix="/api", tags=["BI Agent Chat"])
 
 @app.get("/")
+@app.get("/api")
 async def root():
     return {
         "service": "Skylark BI Executive API",

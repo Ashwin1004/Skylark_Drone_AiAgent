@@ -157,7 +157,7 @@ export const App: React.FC = () => {
       const errorMsg: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: `⚠️ **Unable to complete the analysis**\n\n${cleanErrorDetail}\n\nPlease verify that your backend server is running on 'http://localhost:8000'.`,
+        content: `⚠️ **Unable to complete the analysis**\n\n${cleanErrorDetail}\n\nPlease verify that your backend server is running.`,
         error: true,
         timestamp: new Date().toISOString(),
       };
