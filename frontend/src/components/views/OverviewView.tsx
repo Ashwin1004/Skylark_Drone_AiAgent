@@ -28,24 +28,24 @@ export const OverviewView: React.FC<Props> = ({ health, onLaunchQuery }) => {
   };
 
   const stageData = [
-    { stage: 'Proposal Sent', value: 8.50, color: '#38bdf8' },
-    { stage: 'Negotiation', value: 2.73, color: '#34d399' },
-    { stage: 'Qualified Lead', value: 1.00, color: '#c084fc' }
+    { stage: 'Proposal Sent', value: 8.50, color: '#a85507' },
+    { stage: 'Negotiation', value: 2.73, color: '#059669' },
+    { stage: 'Qualified Lead', value: 1.00, color: '#7c3aed' }
   ];
 
   return (
-    <div className="flex-1 overflow-y-auto p-6 max-w-6xl mx-auto w-full space-y-8 animate-in fade-in duration-200 select-none">
+    <div className="flex-1 overflow-y-auto p-6 max-w-6xl mx-auto w-full space-y-8 animate-in fade-in duration-200 select-none bg-[#f3eee6] text-[#211a17]">
       
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800/80 pb-5">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#e2dcd3] pb-5">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <h1 className="text-xl font-bold text-slate-100 tracking-tight">Executive Overview</h1>
-            <span className="bg-cyan-950/80 text-cyan-400 text-[10px] px-2 py-0.5 rounded font-mono border border-cyan-800/50 flex items-center gap-1">
-              <Sparkles className="w-2.5 h-2.5" /> Live Monday.com
+            <h1 className="text-xl font-bold text-[#211a17] tracking-tight">Executive Overview</h1>
+            <span className="bg-[#e8e1d5] text-[#4a3d37] text-[10px] px-2 py-0.5 rounded font-mono border border-[#d8cdbc] flex items-center gap-1 font-semibold">
+              <Sparkles className="w-2.5 h-2.5 text-[#a85507]" /> Skylark Agent
             </span>
           </div>
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-[#786a62]">
             Real-time business signals and deterministic commercial analytics.
           </p>
         </div>
@@ -54,160 +54,139 @@ export const OverviewView: React.FC<Props> = ({ health, onLaunchQuery }) => {
       {/* Ask Skylark Search Bar */}
       <form onSubmit={handleSearchSubmit} className="relative max-w-2xl">
         <div className="relative flex items-center">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 pointer-events-none" />
+          <Search className="w-4 h-4 text-[#8c7f76] absolute left-3.5 pointer-events-none" />
           <input
             type="text"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Ask Skylark BI anything (e.g., 'How is our pipeline looking this quarter?')..."
-            className="w-full bg-[#0b0f19] text-slate-100 placeholder-slate-500 text-xs rounded-xl pl-10 pr-28 py-3 border border-slate-800/80 focus:border-cyan-500/80 focus:outline-none focus:ring-1 focus:ring-cyan-500/20 shadow-lg transition-all"
+            placeholder="Ask Skylark Agent anything about pipeline, work orders, billing..."
+            className="w-full bg-white text-[#211a17] placeholder-[#a3978c] border border-[#dcd4c8] focus:border-[#8c7365] rounded-xl pl-10 pr-24 py-3 text-xs focus:outline-none focus:ring-2 focus:ring-[#e8dfd3] shadow-2xs transition-all"
           />
           <button
             type="submit"
             disabled={!searchInput.trim()}
-            className="absolute right-2 text-xs bg-cyan-600 hover:bg-cyan-500 disabled:opacity-40 text-white font-medium px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-1 shadow-sm"
+            className="absolute right-2 px-3 py-1.5 bg-[#4a3d37] hover:bg-[#3b2e2a] text-[#f5f2eb] rounded-lg text-xs font-semibold disabled:opacity-40 transition-all shadow-xs"
           >
-            <span>Ask</span>
-            <ArrowRight className="w-3 h-3" />
+            Ask Agent
           </button>
         </div>
       </form>
 
-      {/* Key Business Signals (4 KPI Cards) */}
-      <div>
-        <h2 className="text-xs uppercase font-mono tracking-wider text-slate-400 font-semibold mb-3">
-          Key Business Signals
-        </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          
-          <div 
-            onClick={() => onLaunchQuery('How is our pipeline looking this quarter?')}
-            className="group cursor-pointer bg-[#0b0f19] hover:bg-[#0f1524] p-4 rounded-xl border border-slate-800/80 hover:border-cyan-500/40 transition-all shadow-sm"
-          >
-            <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
-              <span className="font-medium">Open Pipeline</span>
-              <TrendingUp className="w-4 h-4 text-cyan-400 group-hover:scale-110 transition-transform" />
-            </div>
-            <div className="text-2xl font-extrabold text-slate-100 font-mono tracking-tight mb-1">₹12.23 Cr</div>
-            <p className="text-[11px] text-slate-500">Across 3 open deals this quarter</p>
+      {/* Executive Key Signals Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        
+        <div className="p-4 rounded-xl bg-white border border-[#e2dcd3] shadow-2xs space-y-2">
+          <div className="flex items-center justify-between text-xs text-[#786a62] font-mono">
+            <span>Open Pipeline</span>
+            <TrendingUp className="w-4 h-4 text-[#a85507]" />
           </div>
-
-          <div 
-            onClick={() => onLaunchQuery('How is our pipeline looking this quarter?')}
-            className="group cursor-pointer bg-[#0b0f19] hover:bg-[#0f1524] p-4 rounded-xl border border-slate-800/80 hover:border-emerald-500/40 transition-all shadow-sm"
-          >
-            <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
-              <span className="font-medium">Weighted Forecast</span>
-              <Layers className="w-4 h-4 text-emerald-400 group-hover:scale-110 transition-transform" />
-            </div>
-            <div className="text-2xl font-extrabold text-emerald-400 font-mono tracking-tight mb-1">₹97.87 L</div>
-            <p className="text-[11px] text-slate-500">Weighted by closure probability</p>
-          </div>
-
-          <div 
-            onClick={() => onLaunchQuery('How many active work orders do we have?')}
-            className="group cursor-pointer bg-[#0b0f19] hover:bg-[#0f1524] p-4 rounded-xl border border-slate-800/80 hover:border-sky-500/40 transition-all shadow-sm"
-          >
-            <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
-              <span className="font-medium">Active Work Orders</span>
-              <Activity className="w-4 h-4 text-sky-400 group-hover:scale-110 transition-transform" />
-            </div>
-            <div className="text-2xl font-extrabold text-slate-100 font-mono tracking-tight mb-1">4 Active</div>
-            <p className="text-[11px] text-slate-500">Drone survey &amp; mapping ops</p>
-          </div>
-
-          <div 
-            onClick={() => onLaunchQuery('What money is pending billing or collection?')}
-            className="group cursor-pointer bg-[#0b0f19] hover:bg-[#0f1524] p-4 rounded-xl border border-slate-800/80 hover:border-amber-500/40 transition-all shadow-sm"
-          >
-            <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
-              <span className="font-medium">Pending Billing</span>
-              <DollarSign className="w-4 h-4 text-amber-400 group-hover:scale-110 transition-transform" />
-            </div>
-            <div className="text-2xl font-extrabold text-amber-300 font-mono tracking-tight mb-1">₹82.30 L</div>
-            <p className="text-[11px] text-slate-500">Unbilled milestone deliverables</p>
-          </div>
-
+          <div className="text-2xl font-bold text-[#211a17] font-mono">₹12.23 Cr</div>
+          <p className="text-[11px] text-[#786a62]">Across 3 active open deals</p>
         </div>
+
+        <div className="p-4 rounded-xl bg-white border border-[#e2dcd3] shadow-2xs space-y-2">
+          <div className="flex items-center justify-between text-xs text-[#786a62] font-mono">
+            <span>Weighted Forecast</span>
+            <Layers className="w-4 h-4 text-[#059669]" />
+          </div>
+          <div className="text-2xl font-bold text-[#059669] font-mono">₹7.55 Cr</div>
+          <p className="text-[11px] text-[#786a62]">Probability-adjusted revenue</p>
+        </div>
+
+        <div className="p-4 rounded-xl bg-white border border-[#e2dcd3] shadow-2xs space-y-2">
+          <div className="flex items-center justify-between text-xs text-[#786a62] font-mono">
+            <span>Active Work Orders</span>
+            <Activity className="w-4 h-4 text-[#7c3aed]" />
+          </div>
+          <div className="text-2xl font-bold text-[#211a17] font-mono">3 Ops</div>
+          <p className="text-[11px] text-[#786a62]">₹8.50 L total operational value</p>
+        </div>
+
+        <div className="p-4 rounded-xl bg-white border border-[#e2dcd3] shadow-2xs space-y-2">
+          <div className="flex items-center justify-between text-xs text-[#786a62] font-mono">
+            <span>Pending Billing</span>
+            <DollarSign className="w-4 h-4 text-[#d97706]" />
+          </div>
+          <div className="text-2xl font-bold text-[#d97706] font-mono">₹8.50 L</div>
+          <p className="text-[11px] text-[#b45309] font-medium">3 work orders require invoicing</p>
+        </div>
+
       </div>
 
-      {/* Recharts Pipeline by Stage Visualization */}
-      <div className="bg-[#0b0f19] p-5 rounded-2xl border border-slate-800/80 shadow-md">
-        <div className="flex items-center justify-between mb-4">
+      {/* Visual Analysis Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        
+        {/* Stage Chart */}
+        <div className="p-5 rounded-xl bg-white border border-[#e2dcd3] shadow-2xs space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs uppercase font-mono tracking-wider text-[#4a3d37] font-bold">
+              Pipeline Stage Breakdown (₹ Cr)
+            </h3>
+          </div>
+          <div className="h-48 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={stageData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <XAxis dataKey="stage" stroke="#786a62" fontSize={11} tickLine={false} />
+                <YAxis stroke="#786a62" fontSize={11} tickLine={false} />
+                <Tooltip 
+                  contentStyle={{ backgroundColor: '#ffffff', borderColor: '#dcd4c8', borderRadius: '8px', fontSize: '11px', color: '#211a17' }}
+                />
+                <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                  {stageData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Attention Items */}
+        <div className="p-5 rounded-xl bg-white border border-[#e2dcd3] shadow-2xs space-y-4 flex flex-col justify-between">
           <div>
-            <h3 className="text-sm font-bold text-slate-100">Pipeline Value by Stage (₹ Cr)</h3>
-            <p className="text-xs text-slate-400">Distribution of commercial deal value across active pipeline stages.</p>
-          </div>
-          <span className="text-[10px] font-mono text-cyan-400 bg-cyan-950/60 px-2 py-0.5 rounded border border-cyan-800/40">
-            3 Active Deals
-          </span>
-        </div>
-
-        <div className="h-44 w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart layout="vertical" data={stageData} margin={{ top: 5, right: 30, left: 40, bottom: 5 }}>
-              <XAxis type="number" stroke="#64748b" fontSize={10} tickFormatter={(val) => `₹${val} Cr`} />
-              <YAxis type="category" dataKey="stage" stroke="#94a3b8" fontSize={11} width={90} />
-              <Tooltip 
-                contentStyle={{ backgroundColor: '#0d1322', borderColor: '#334155', borderRadius: '8px', fontSize: '11px', color: '#f8fafc' }} 
-                formatter={(value: any) => [`₹${value} Cr`, 'Deal Value']}
-              />
-              <Bar dataKey="value" radius={[0, 6, 6, 0]} barSize={18}>
-                {stageData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      {/* What Needs Attention Section */}
-      <div>
-        <h2 className="text-xs uppercase font-mono tracking-wider text-slate-400 font-semibold mb-3">
-          What Needs Attention
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          
-          <div className="p-5 rounded-xl bg-[#0b0f19] border border-slate-800/80 flex flex-col justify-between">
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <AlertCircle className="w-4 h-4 text-amber-400" />
-                <h3 className="text-sm font-bold text-slate-200">Pipeline Concentration</h3>
+            <h3 className="text-xs uppercase font-mono tracking-wider text-[#b45309] font-bold mb-3 flex items-center gap-1.5">
+              <AlertCircle className="w-4 h-4 text-[#d97706]" /> Executive Priority Signals
+            </h3>
+            
+            <div className="space-y-3">
+              <div 
+                onClick={() => onLaunchQuery("What money is pending billing or collection?")}
+                className="p-3 rounded-lg bg-[#fef3c7]/50 border border-[#fde68a] hover:border-[#f59e0b] transition-colors cursor-pointer group"
+              >
+                <div className="flex items-center justify-between text-xs font-bold text-[#92400e] mb-1">
+                  <span>Pending Invoicing Action</span>
+                  <ArrowRight className="w-3.5 h-3.5 text-[#d97706] group-hover:translate-x-1 transition-transform" />
+                </div>
+                <p className="text-xs text-[#78350f]">
+                  ₹8.50 L in completed work orders is currently unbilled across 3 operations.
+                </p>
               </div>
-              <p className="text-xs text-slate-400 mb-4 leading-relaxed">
-                Tender and Powerline opportunities represent a significant percentage of open high-value deal pipeline. Prioritizing top-tier deal negotiation is essential.
-              </p>
+
+              <div 
+                onClick={() => onLaunchQuery("Show me high-value deals with low closure probability")}
+                className="p-3 rounded-lg bg-[#e0f2fe]/50 border border-[#bae6fd] hover:border-[#0284c7] transition-colors cursor-pointer group"
+              >
+                <div className="flex items-center justify-between text-xs font-bold text-[#075985] mb-1">
+                  <span>Pipeline Concentration</span>
+                  <ArrowRight className="w-3.5 h-3.5 text-[#0284c7] group-hover:translate-x-1 transition-transform" />
+                </div>
+                <p className="text-xs text-[#0369a1]">
+                  Proposal stage holds 69.5% of total pipeline. Review closing milestones.
+                </p>
+              </div>
             </div>
-            <button
-              onClick={() => onLaunchQuery('What are our biggest high-probability opportunities?')}
-              className="text-xs text-cyan-400 hover:text-cyan-300 font-medium font-mono flex items-center gap-1.5 self-start"
+          </div>
+
+          <div className="pt-2 border-t border-[#f0eae1] flex justify-end">
+            <button 
+              onClick={() => onLaunchQuery("Prepare a leadership update.")}
+              className="text-xs text-[#4a3d37] hover:text-[#211a17] font-semibold flex items-center gap-1"
             >
-              <span>Explore High-Probability Deals</span>
-              <ArrowRight className="w-3.5 h-3.5" />
+              Generate Full Leadership Brief →
             </button>
           </div>
-
-          <div className="p-5 rounded-xl bg-[#0b0f19] border border-slate-800/80 flex flex-col justify-between">
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <DollarSign className="w-4 h-4 text-emerald-400" />
-                <h3 className="text-sm font-bold text-slate-200">Pending Billing Milestone Opportunity</h3>
-              </div>
-              <p className="text-xs text-slate-400 mb-4 leading-relaxed">
-                ₹82.30 Lakh in completed drone mapping deliverables is awaiting invoice dispatch. Review unbilled work order deliverables to accelerate cash collection.
-              </p>
-            </div>
-            <button
-              onClick={() => onLaunchQuery('What money is pending billing or collection?')}
-              className="text-xs text-emerald-400 hover:text-emerald-300 font-medium font-mono flex items-center gap-1.5 self-start"
-            >
-              <span>Review Receivables &amp; Invoicing</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
-
         </div>
+
       </div>
 
     </div>

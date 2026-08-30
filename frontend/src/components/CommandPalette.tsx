@@ -48,8 +48,8 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
 
   const routes: RouteItem[] = [
     { type: 'route', label: 'New conversation', icon: Plus, action: onNewChat, category: 'Actions' },
+    { type: 'route', label: 'Ask Skylark Agent', icon: MessageSquare, action: onNewChat, category: 'Workspace' },
     { type: 'route', label: 'Executive Overview', icon: Home, action: onNavigateHome, category: 'Workspace' },
-    { type: 'route', label: 'Ask BI Agent', icon: MessageSquare, action: onNewChat, category: 'Workspace' },
     { type: 'route', label: 'Sales Pipeline Analytics', icon: TrendingUp, action: () => onSelectTab('pipeline'), category: 'Workspace' },
     { type: 'route', label: 'Sector Intelligence', icon: PieChart, action: () => onSelectTab('sectors'), category: 'Workspace' },
     { type: 'route', label: 'Leadership Brief Report', icon: FileText, action: () => onSelectTab('leadership'), category: 'Workspace' },
@@ -92,13 +92,13 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-start justify-center pt-24 px-4 select-none animate-in fade-in duration-150">
+    <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-start justify-center pt-24 px-4 select-none animate-in fade-in duration-150">
       
-      <div className="w-full max-w-xl bg-[#0d1322] border border-slate-700/80 rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+      <div className="w-full max-w-xl bg-white border border-slate-200 rounded-2xl shadow-xl overflow-hidden flex flex-col text-slate-900">
         
         {/* Search Header Input */}
-        <div className="p-3.5 border-b border-slate-800 flex items-center gap-3">
-          <Search className="w-4 h-4 text-cyan-400 shrink-0" />
+        <div className="p-3.5 border-b border-slate-200 flex items-center gap-3">
+          <Search className="w-4 h-4 text-sky-600 shrink-0" />
           <input
             type="text"
             autoFocus
@@ -109,9 +109,9 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
             }}
             onKeyDown={handleKeyDown}
             placeholder="Search commands, views, or conversations... (Esc to cancel)"
-            className="w-full bg-transparent text-slate-100 placeholder-slate-500 text-sm focus:outline-none"
+            className="w-full bg-transparent text-slate-900 placeholder-slate-400 text-sm focus:outline-none"
           />
-          <button onClick={onClose} className="p-1 text-slate-500 hover:text-slate-300">
+          <button onClick={onClose} className="p-1 text-slate-400 hover:text-slate-700">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -119,7 +119,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
         {/* Results List */}
         <div className="max-h-80 overflow-y-auto p-2 space-y-1">
           {allItems.length === 0 ? (
-            <div className="p-6 text-center text-xs text-slate-500 font-mono">
+            <div className="p-6 text-center text-xs text-slate-400 font-mono">
               No matching commands or conversations found.
             </div>
           ) : (
@@ -135,14 +135,14 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                       onClose();
                     }}
                     className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs transition-colors ${
-                      isSelected ? 'bg-cyan-950/80 text-cyan-200 border border-cyan-700/50' : 'text-slate-300 hover:bg-slate-900'
+                      isSelected ? 'bg-sky-50 text-sky-900 font-medium border border-sky-200' : 'text-slate-700 hover:bg-slate-50'
                     }`}
                   >
                     <span className="flex items-center gap-2.5">
-                      <Icon className="w-4 h-4 text-cyan-400" />
+                      <Icon className="w-4 h-4 text-sky-600" />
                       <span>{item.label}</span>
                     </span>
-                    <span className="text-[10px] font-mono text-slate-500">{item.category}</span>
+                    <span className="text-[10px] font-mono text-slate-400">{item.category}</span>
                   </button>
                 );
               } else {
@@ -154,14 +154,14 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                       onClose();
                     }}
                     className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs transition-colors ${
-                      isSelected ? 'bg-slate-800 text-slate-100 border border-slate-700' : 'text-slate-400 hover:bg-slate-900'
+                      isSelected ? 'bg-slate-100 text-slate-900 border border-slate-200' : 'text-slate-600 hover:bg-slate-50'
                     }`}
                   >
                     <span className="flex items-center gap-2.5 truncate">
-                      <MessageSquare className="w-4 h-4 text-sky-400 shrink-0" />
+                      <MessageSquare className="w-4 h-4 text-sky-500 shrink-0" />
                       <span className="truncate">{item.data.title}</span>
                     </span>
-                    <span className="text-[10px] font-mono text-slate-500">Conversation</span>
+                    <span className="text-[10px] font-mono text-slate-400">Conversation</span>
                   </button>
                 );
               }
@@ -170,7 +170,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="p-2.5 bg-slate-950/60 border-t border-slate-800/80 text-[10px] font-mono text-slate-500 flex items-center justify-between px-4">
+        <div className="p-2.5 bg-slate-50 border-t border-slate-200 text-[10px] font-mono text-slate-500 flex items-center justify-between px-4">
           <span>Navigation: ↑ ↓ Arrow Keys</span>
           <span>Execute: Enter</span>
         </div>

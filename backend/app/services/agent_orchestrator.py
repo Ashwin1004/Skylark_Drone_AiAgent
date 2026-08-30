@@ -13,12 +13,11 @@ logger = get_logger("AgentOrchestrator")
 
 SUGGESTED_QUESTIONS = [
     "How is our pipeline looking this quarter?",
-    "How is the Energy sector performing?",
-    "What are our biggest high-probability opportunities?",
-    "How many active work orders do we currently have?",
-    "How much money is pending billing or collection?",
-    "Which customers have active work orders but no active deals?",
-    "Prepare a leadership update."
+    "Which deals need executive attention?",
+    "Which sectors are driving pipeline growth?",
+    "How many active work orders do we have?",
+    "What's currently pending billing?",
+    "Prepare a leadership brief"
 ]
 
 class AgentOrchestrator:
@@ -33,25 +32,92 @@ class AgentOrchestrator:
     ) -> ChatResponse:
         """
         Main orchestration loop executing Intent -> Data Fetch -> Normalization -> Analytics -> AI Explanation.
+        Classifies incoming intent BEFORE any Monday.com API calls or analytics execution.
         """
         logger.info(f"Processing user question: '{question}'")
 
-        # 1. Intent Classification & Parameter Extraction
+        # 1. Intent Classification & Parameter Extraction BEFORE any API calls
         intent, params = QueryUnderstandingService.classify_intent_and_params(question, context_history)
         target_sector = params.get("sector")
         timeframe_str = params.get("timeframe")
 
-        # Handle Ambiguous Queries by asking for clarification
+        # 1a. GREETING
+        if intent == "greeting":
+            logger.info("Matched GREETING intent. Returning casual greeting without calling Monday.com API.")
+            return ChatResponse(
+                answer="Hi! 👋 I'm Skylark Agent. What would you like to know about the business?",
+                intent="greeting",
+                data_sources=[],
+                metrics={},
+                data_quality=DataQualityReport(score=100.0, total_records=0, valid_records=0, deductions=[]),
+                explainability=ExplainabilityMetadata(
+                    data_sources=[], calculation_method="Conversational greeting response.", timeframe_resolved="N/A"
+                ),
+                suggested_followups=SUGGESTED_QUESTIONS[:4]
+            )
+
+        # 1b. CASUAL CONVERSATION
+        if intent == "casual_conversation":
+            logger.info("Matched CASUAL_CONVERSATION intent. Returning casual response without calling Monday.com API.")
+            casual_subtype = params.get("casual_subtype")
+            if casual_subtype == "thanks":
+                answer_text = "You're welcome! Let me know if you'd like to explore any business insights."
+            else:
+                answer_text = "I'm doing great! I'm ready to help you analyze Skylark's business. Ask me about pipeline, deals, work orders, revenue, sectors, risks, or leadership insights."
+
+            return ChatResponse(
+                answer=answer_text,
+                intent="casual_conversation",
+                data_sources=[],
+                metrics={},
+                data_quality=DataQualityReport(score=100.0, total_records=0, valid_records=0, deductions=[]),
+                explainability=ExplainabilityMetadata(
+                    data_sources=[], calculation_method="Conversational response.", timeframe_resolved="N/A"
+                ),
+                suggested_followups=SUGGESTED_QUESTIONS[:4]
+            )
+
+        # 1c. FAREWELL
+        if intent == "farewell":
+            logger.info("Matched FAREWELL intent. Returning farewell response without calling Monday.com API.")
+            return ChatResponse(
+                answer="Goodbye! 👋 Come back anytime if you need help analyzing Skylark's business.",
+                intent="farewell",
+                data_sources=[],
+                metrics={},
+                data_quality=DataQualityReport(score=100.0, total_records=0, valid_records=0, deductions=[]),
+                explainability=ExplainabilityMetadata(
+                    data_sources=[], calculation_method="Conversational farewell response.", timeframe_resolved="N/A"
+                ),
+                suggested_followups=[]
+            )
+
+        # 1d. OUT OF SCOPE
+        if intent == "out_of_scope":
+            logger.info("Matched OUT_OF_SCOPE intent. Returning scope boundary response without calling Monday.com API.")
+            return ChatResponse(
+                answer="That's outside my business intelligence scope. I can help with Skylark's pipeline, deals, work orders, revenue, sectors, risks, and leadership insights.",
+                intent="out_of_scope",
+                data_sources=[],
+                metrics={},
+                data_quality=DataQualityReport(score=100.0, total_records=0, valid_records=0, deductions=[]),
+                explainability=ExplainabilityMetadata(
+                    data_sources=[], calculation_method="Enforced business intelligence boundary.", timeframe_resolved="N/A"
+                ),
+                suggested_followups=SUGGESTED_QUESTIONS[:4]
+            )
+
+        # 1e. Ambiguous Queries
         if intent == "ambiguous_query":
             clarification_answer = """### 🤔 Query Clarification Needed
 
 To provide an exact deterministic business analysis, please specify which area you would like to inspect:
 
 1. **Sales & Pipeline Performance**: *"How is our pipeline looking this quarter?"*
-2. **Sector Breakdown**: *"How is the Energy sector performing?"*
-3. **Operational Work Orders**: *"How many active work orders do we currently have?"*
-4. **Billing & Cash Collections**: *"How much money is pending billing or collection?"*
-5. **Executive Summary**: *"Prepare a leadership update."*
+2. **Sector Breakdown**: *"Which sectors are driving pipeline growth?"*
+3. **Operational Work Orders**: *"How many active work orders do we have?"*
+4. **Billing & Cash Collections**: *"What's currently pending billing?"*
+5. **Executive Summary**: *"Prepare a leadership brief"*
 """
             return ChatResponse(
                 answer=clarification_answer,
@@ -68,6 +134,9 @@ To provide an exact deterministic business analysis, please specify which area y
                 ),
                 suggested_followups=SUGGESTED_QUESTIONS[:4]
             )
+
+        # BUSINESS QUERY INTENTS -> Execute dynamic Monday.com API calls
+        logger.info(f"Executing Business Query pipeline for intent '{intent}'...")
 
         # Resolve timeframe dates
         start_date, end_date, timeframe_label = resolve_relative_timeframe(timeframe_str)

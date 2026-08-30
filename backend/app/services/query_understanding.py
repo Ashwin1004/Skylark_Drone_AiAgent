@@ -15,6 +15,36 @@ AMBIGUOUS_PATTERNS = [
     "overall status"
 ]
 
+BUSINESS_KEYWORDS = [
+    "pipeline", "deal", "deals", "funnel", "stage", "stages", "weighted", "forecast",
+    "work order", "work orders", "order", "orders", "operation", "operations",
+    "revenue", "billing", "invoice", "invoicing", "collection", "collections", "receivables", "pending",
+    "sector", "sectors", "mining", "powerline", "renewables", "railways", "construction", "tender", "dsp", "energy",
+    "opportunity", "opportunities", "closure", "probability",
+    "leadership", "executive", "founder", "brief", "update",
+    "risk", "risks", "vulnerable", "owner", "owners", "kam", "bd", "customer", "customers", "client", "clients",
+    "skylark", "monday", "board", "boards", "quality", "health", "issues", "performance", "total", "value"
+]
+
+GREETING_PATTERNS = [
+    r"^\s*(hi|hii|hiii|hello|hey|heyy|greetings)\s*$",
+    r"^\s*(good\s+(morning|afternoon|evening|day))\s*$"
+]
+
+FAREWELL_PATTERNS = [
+    r"^\s*(bye|goodbye|see\s+you|see\s+ya|talk\s+to\s+you\s+later|have\s+a\s+good\s+day|take\s+care)\s*$"
+]
+
+THANKS_PATTERNS = [
+    r"^\s*(thanks|thank\s+you|thanks\s+a\s+lot|thank\s+you\s+so\s+much|thx)\s*$"
+]
+
+CASUAL_PATTERNS = [
+    r"^\s*how\s+(are\s+you|is\s+it\s+going|s\s+it\s+going|are\s+things|s\s+going)\s*\??\s*$",
+    r"^\s*what\s*(s|\s+is)?\s+up\s*\??\s*$",
+    r"^\s*(nice|awesome|cool|great|ok|okay)\s*$"
+]
+
 class QueryUnderstandingService:
     
     @staticmethod
@@ -23,10 +53,17 @@ class QueryUnderstandingService:
         context_history: Optional[List[Dict[str, str]]] = None
     ) -> Tuple[str, Dict[str, Any]]:
         """
-        Determines query intent and extracts parameters (sector, timeframe, follow-ups).
-        Handles vague/ambiguous queries by routing to 'ambiguous_query'.
+        Determines query intent and extracts parameters.
+        Classifies queries BEFORE any database or API call into:
+        1. GREETING
+        2. CASUAL_CONVERSATION
+        3. FAREWELL
+        4. OUT_OF_SCOPE
+        5. BUSINESS_QUERY (pipeline_overview, sector_analysis, etc.)
         """
         q = question.lower().strip()
+        q_clean = re.sub(r'[^\w\s]', ' ', q)
+        q_clean = ' '.join(q_clean.split())
         params: Dict[str, Any] = {}
 
         # Extract Sector if present
@@ -52,6 +89,9 @@ class QueryUnderstandingService:
         elif "ytd" in q or "year to date" in q:
             params["timeframe"] = "ytd"
 
+        # Check explicit business relevance
+        is_business = any(re.search(r'\b' + re.escape(kw) + r'\b', q) for kw in BUSINESS_KEYWORDS) or target_sector is not None or "timeframe" in params
+
         # Extract Explicit Probability Threshold (e.g. "below 30%" or "probability <= 40%")
         prob_match = re.search(r"(?:below|under|less than|<=|<)\s*(\d{1,2})\s*%", q)
         if prob_match:
@@ -59,8 +99,50 @@ class QueryUnderstandingService:
                 extracted_pct = float(prob_match.group(1))
                 if 0 < extracted_pct <= 100:
                     params["low_probability_threshold"] = extracted_pct / 100.0
+                    is_business = True
             except Exception:
                 pass
+
+        # Check Ambiguous Query Patterns first
+        if any(pat in q for pat in AMBIGUOUS_PATTERNS) and not is_business:
+            return "ambiguous_query", params
+
+        # If it is NOT a business query, classify into GREETING, FAREWELL, CASUAL_CONVERSATION, or OUT_OF_SCOPE
+        if not is_business:
+            # 1. Greetings
+            for pattern in GREETING_PATTERNS:
+                if re.match(pattern, q_clean):
+                    return "greeting", params
+
+            # 2. Farewells
+            for pattern in FAREWELL_PATTERNS:
+                if re.match(pattern, q_clean):
+                    return "farewell", params
+
+            # 3. Casual Conversation / Thanks
+            for pattern in THANKS_PATTERNS:
+                if re.match(pattern, q_clean):
+                    params["casual_subtype"] = "thanks"
+                    return "casual_conversation", params
+
+            for pattern in CASUAL_PATTERNS:
+                if re.match(pattern, q_clean):
+                    params["casual_subtype"] = "how_are_you"
+                    return "casual_conversation", params
+
+            # Check if query is short non-business greeting/casual phrase
+            if len(q_clean.split()) <= 2 and any(w in q_clean for w in ["hi", "hello", "hey", "thanks", "bye"]):
+                if any(w in q_clean for w in ["bye", "goodbye"]):
+                    return "farewell", params
+                if any(w in q_clean for w in ["thanks"]):
+                    params["casual_subtype"] = "thanks"
+                    return "casual_conversation", params
+                return "greeting", params
+
+            # ALL other non-business questions are OUT_OF_SCOPE!
+            return "out_of_scope", params
+
+        # BUSINESS QUERY INTENTS
 
         # Check for Conversational Follow-up Context
         last_intent = None
@@ -80,11 +162,7 @@ class QueryUnderstandingService:
                 params["sector"] = target_sector or last_sector
                 return last_intent, params
 
-        # Detect Ambiguous Questions requiring Clarification
-        if any(pat in q for pat in AMBIGUOUS_PATTERNS) and not target_sector and "pipeline" not in q and "work" not in q:
-            return "ambiguous_query", params
-
-        # Intent Classification rules
+        # Intent Classification rules for Business Queries
         if any(k in q for k in ["leadership", "executive", "founder", "update for leadership", "5 most important things"]):
             return "leadership_update", params
 
@@ -109,8 +187,13 @@ class QueryUnderstandingService:
         if any(k in q for k in ["quality", "data health", "missing", "data report"]):
             return "data_quality_report", params
 
+        if any(k in q for k in ["billing", "invoice", "invoicing", "pending billing", "unbilled"]):
+            return "billing_analysis", params
+
+        if any(k in q for k in ["work order", "work orders", "active work orders", "operations"]):
+            return "work_order_analysis", params
+
         if any(k in q for k in ["pipeline", "funnel", "open deal", "target", "performing", "how is our pipeline"]):
             return "pipeline_overview", params
 
-        # Default fallback to pipeline overview
         return "pipeline_overview", params

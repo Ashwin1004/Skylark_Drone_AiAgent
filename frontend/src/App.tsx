@@ -17,15 +17,17 @@ const STORAGE_KEY = 'skylark_saved_conversations';
 
 function generateTitle(question: string): string {
   const q = question.toLowerCase();
-  if (q.includes('pipeline') || q.includes('funnel')) return 'Pipeline performance';
-  if (q.includes('sector') || q.includes('energy')) return 'Energy sector analysis';
-  if (q.includes('opportunity') || q.includes('opportunities')) return 'High-probability deals';
-  if (q.includes('work order') || q.includes('active work')) return 'Active operations';
-  if (q.includes('leadership') || q.includes('executive')) return 'Leadership brief';
-  if (q.includes('billing') || q.includes('collection')) return 'Billing & cash';
+  if (q.includes('pipeline') || q.includes('funnel')) return 'Pipeline Review';
+  if (q.includes('high-value') || q.includes('high value') || (q.includes('deal') && q.includes('risk')) || q.includes('vulnerable')) return 'High-Value Deal Risks';
+  if (q.includes('energy') && q.includes('sector')) return 'Energy Sector Analysis';
+  if (q.includes('sector') || q.includes('sectors')) return 'Sector Analysis';
+  if (q.includes('opportunity') || q.includes('opportunities')) return 'Opportunity Analysis';
+  if (q.includes('work order') || q.includes('active work') || q.includes('operation')) return 'Active Operations';
+  if (q.includes('leadership') || q.includes('brief') || q.includes('executive')) return 'Leadership Brief';
+  if (q.includes('billing') || q.includes('collection') || q.includes('pending')) return 'Billing & Receivables';
   
   const words = question.trim().split(' ');
-  return words.slice(0, 3).join(' ') + (words.length > 3 ? '...' : '');
+  return words.slice(0, 4).join(' ') + (words.length > 4 ? '...' : '');
 }
 
 export const App: React.FC = () => {
@@ -35,7 +37,7 @@ export const App: React.FC = () => {
   const [activeMetadata, setActiveMetadata] = useState<ChatResponse | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   
-  // Workspace Views: 'home' | 'ask' | 'pipeline' | 'sectors' | 'leadership'
+  // Workspace Views: 'ask' (default AI chat) | 'home' | 'pipeline' | 'sectors' | 'leadership'
   const [activeTab, setActiveTab] = useState<string>('ask');
 
   const [savedConversations, setSavedConversations] = useState<SavedConversation[]>([]);
@@ -47,6 +49,7 @@ export const App: React.FC = () => {
   const [renameCandidate, setRenameCandidate] = useState<SavedConversation | null>(null);
 
   const chatInputRef = useRef<HTMLTextAreaElement | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Global Cmd+K / Ctrl+K keyboard shortcut
   useEffect(() => {
@@ -117,6 +120,14 @@ export const App: React.FC = () => {
     }
   };
 
+  const handleStopGeneration = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    setIsLoading(false);
+  };
+
   const handleSendMessage = async (query: string) => {
     if (!query || !query.trim() || isLoading) return;
 
@@ -135,9 +146,10 @@ export const App: React.FC = () => {
     setMessages(nextMessages);
     setIsLoading(true);
 
-    try {
-      const response: ChatResponse = await sendChatMessage(query.trim(), messages);
+    abortControllerRef.current = new AbortController();
 
+    try {
+      const response: ChatResponse = await sendChatMessage(query.trim(), messages, abortControllerRef.current.signal);
       const assistantMsg: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
@@ -150,35 +162,42 @@ export const App: React.FC = () => {
       setMessages(finalMessages);
       saveConversationSession(finalMessages, activeConversationId);
     } catch (err: any) {
-      const cleanErrorDetail = typeof err.message === 'string' && err.message.trim()
-        ? err.message
-        : 'The BI service could not process this request. Please verify server status.';
+      if (err.message === 'Generation stopped by user.') {
+        const stoppedMsg: Message = {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant',
+          content: '⏹️ *Generation stopped by user.*',
+          timestamp: new Date().toISOString(),
+        };
+        const finalMessages = [...nextMessages, stoppedMsg];
+        setMessages(finalMessages);
+        saveConversationSession(finalMessages, activeConversationId);
+      } else {
+        const cleanErrorDetail = typeof err.message === 'string' && err.message.trim()
+          ? err.message
+          : 'The BI service could not process this request. Please verify server status.';
 
-      const errorMsg: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: `⚠️ **Unable to complete the analysis**\n\n${cleanErrorDetail}\n\nPlease verify that your backend server is running.`,
-        error: true,
-        timestamp: new Date().toISOString(),
-      };
-      const finalMessages = [...nextMessages, errorMsg];
-      setMessages(finalMessages);
-      saveConversationSession(finalMessages, activeConversationId);
+        const errorMsg: Message = {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant',
+          content: `⚠️ **Unable to complete the analysis**\n\n${cleanErrorDetail}\n\nPlease verify that your backend server is running.`,
+          error: true,
+          timestamp: new Date().toISOString(),
+        };
+        const finalMessages = [...nextMessages, errorMsg];
+        setMessages(finalMessages);
+        saveConversationSession(finalMessages, activeConversationId);
+      }
     } finally {
       setIsLoading(false);
+      abortControllerRef.current = null;
     }
   };
 
   const handleNewChat = () => {
     setActiveTab('ask');
     setMessages([]);
-    setIsLoading(false);
-    setActiveMetadata(null);
-    setIsDrawerOpen(false);
     setActiveConversationId(null);
-    setTimeout(() => {
-      chatInputRef.current?.focus();
-    }, 50);
   };
 
   const handleNavigateHome = () => {
@@ -187,16 +206,20 @@ export const App: React.FC = () => {
 
   const handleSelectSavedConversation = (conv: SavedConversation) => {
     setActiveTab('ask');
-    setMessages(conv.messages || []);
     setActiveConversationId(conv.id);
-    setTimeout(() => {
-      chatInputRef.current?.focus();
-    }, 50);
+    setMessages(conv.messages || []);
   };
 
   const handleTogglePinConversation = (id: string) => {
     const list = savedConversations.map(c => 
       c.id === id ? { ...c, pinned: !c.pinned } : c
+    );
+    persistConversations(list);
+  };
+
+  const handleToggleArchiveConversation = (id: string) => {
+    const list = savedConversations.map(c => 
+      c.id === id ? { ...c, archived: !c.archived } : c
     );
     persistConversations(list);
   };
@@ -227,7 +250,7 @@ export const App: React.FC = () => {
   };
 
   return (
-    <div className="flex h-screen bg-[#080c14] text-slate-100 font-sans overflow-hidden">
+    <div className="flex h-screen bg-[#f3eee6] text-[#211a17] font-sans overflow-hidden">
       
       {/* Sidebar */}
       <Sidebar
@@ -244,69 +267,49 @@ export const App: React.FC = () => {
         onRenameConversation={(conv) => setRenameCandidate(conv)}
         onDeleteConversation={(conv) => setDeleteCandidate(conv)}
         onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
+        onToggleArchiveConversation={handleToggleArchiveConversation}
       />
 
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col h-full overflow-hidden">
-        
-        {/* Top Header */}
-        <Header 
-          health={health} 
-          onNewChat={handleNewChat} 
-          onNavigateHome={handleNavigateHome}
-        />
-
-        {/* Dynamic Workspace Views */}
-        <main className="flex-1 overflow-hidden flex flex-col relative bg-[#080c14]">
-          {activeTab === 'home' ? (
-            <OverviewView health={health} onLaunchQuery={handleSendMessage} />
-          ) : activeTab === 'pipeline' ? (
-            <PipelineView onLaunchQuery={handleSendMessage} />
-          ) : activeTab === 'sectors' ? (
-            <SectorsView onLaunchQuery={handleSendMessage} />
-          ) : activeTab === 'leadership' ? (
-            <LeadershipView onLaunchQuery={handleSendMessage} />
-          ) : (
-            <ChatInterface
-              messages={messages}
-              onSendMessage={handleSendMessage}
-              isLoading={isLoading}
-              onInspectMetadata={handleInspectMetadata}
-              inputRef={chatInputRef}
-            />
-          )}
+        {/* Main Content Area */}
+        <main className="flex-1 overflow-hidden flex flex-col relative bg-[#f3eee6]">
+          <ChatInterface
+            messages={messages}
+            isLoading={isLoading}
+            onSendMessage={handleSendMessage}
+            onStopGeneration={handleStopGeneration}
+            onInspectMetadata={handleInspectMetadata}
+            inputRef={chatInputRef}
+          />
         </main>
-      </div>
 
-      {/* Analysis Side Panel */}
+      {/* Audit & Explainability Metadata Slide-over Drawer */}
       <MetadataDrawer
         isOpen={isDrawerOpen}
         onClose={() => setIsDrawerOpen(false)}
         metadata={activeMetadata}
       />
 
-      {/* Command Palette (Cmd+K) */}
+      {/* Global Cmd+K Search Command Palette */}
       <CommandPalette
         isOpen={isCommandPaletteOpen}
         onClose={() => setIsCommandPaletteOpen(false)}
         onNavigateHome={handleNavigateHome}
         onNewChat={handleNewChat}
-        onSelectTab={(tab) => setActiveTab(tab)}
+        onSelectTab={setActiveTab}
         savedConversations={savedConversations}
         onSelectSavedConversation={handleSelectSavedConversation}
       />
 
-      {/* Delete Confirmation Modal */}
+      {/* Confirmation Modal for Deleting Conversation */}
       <ConfirmModal
         isOpen={!!deleteCandidate}
-        title="Delete Conversation?"
-        message={`This conversation "${deleteCandidate?.title || ''}" will be permanently removed.`}
-        confirmText="Delete Permanently"
+        title="Delete Conversation"
+        message={`Are you sure you want to delete "${deleteCandidate?.title}"? This action cannot be undone.`}
         onConfirm={handleDeleteConversation}
         onCancel={() => setDeleteCandidate(null)}
       />
 
-      {/* Rename Conversation Modal */}
+      {/* Modal for Renaming Conversation */}
       <RenameModal
         isOpen={!!renameCandidate}
         initialTitle={renameCandidate?.title || ''}

@@ -52,6 +52,17 @@ class GroqService:
 
         current_model = self.model
 
+        is_data_quality_query = intent == "data_quality_report" or "quality" in question.lower() or "health" in question.lower()
+
+        risk_instruction = (
+            "CRITICAL INSTRUCTION FOR RISKS & DATA CAVEATS SECTION:\n"
+            "Include complete data-quality audit details (score %, missing values, record exclusions) as requested by the user."
+            if is_data_quality_query else
+            "CRITICAL INSTRUCTION FOR RISKS & DATA CAVEATS SECTION:\n"
+            "Focus ONLY on meaningful BUSINESS RISKS (e.g. low win-rate, pipeline concentration, deal concentration, forecast risk, billing/collection gap, sector dependency).\n"
+            "DO NOT include data quality scores, missing fields count, missing values, or record exclusion stats in this section. If no material business risks exist, write 'No material business risks identified from the available data.'"
+        )
+
         user_prompt = f"""
 User Question: "{question}"
 Query Intent: {intent}
@@ -60,11 +71,13 @@ Timeframe Resolved: {explainability.get('timeframe_resolved', 'All Time')}
 VERIFIED DETERMINISTIC METRICS (COMPUTED IN PYTHON / PANDAS):
 {json.dumps(metrics, indent=2, default=str)}
 
-DATA QUALITY AUDIT REPORT:
+DATA QUALITY AUDIT REPORT (INTERNAL REFERENCE ONLY):
 {json.dumps(data_quality, indent=2, default=str)}
 
 EXPLAINABILITY DETAILS:
 {json.dumps(explainability, indent=2, default=str)}
+
+{risk_instruction}
 
 Please format a clear, founder-ready executive answer strictly adhering to the system instructions.
 """
@@ -77,8 +90,8 @@ Please format a clear, founder-ready executive answer strictly adhering to the s
                     {"role": "system", "content": SYSTEM_PROMPT},
                     {"role": "user", "content": user_prompt}
                 ],
-                temperature=0.2,
-                max_tokens=1000
+                temperature=0.1,
+                max_tokens=600
             )
             content = response.choices[0].message.content or ""
             logger.info(f"Successfully received executive response from Groq API (Model: {current_model}).")

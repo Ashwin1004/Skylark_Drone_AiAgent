@@ -1,4 +1,5 @@
 import os
+import time
 import httpx
 from typing import Dict, Any, List, Optional
 from app.utils.logging import get_logger
@@ -6,6 +7,9 @@ from app.utils.logging import get_logger
 logger = get_logger("MondayService")
 
 MONDAY_API_URL = "https://api.monday.com/v2"
+CACHE_TTL_SECONDS = 60.0
+
+_board_cache: Dict[str, Dict[str, Any]] = {}
 
 class MondayService:
     def __init__(self, api_token: Optional[str] = None):
@@ -33,7 +37,15 @@ class MondayService:
     async def fetch_board_items_graphql(self, board_id: str) -> List[Dict[str, Any]]:
         """
         Dynamically fetches all items and column values from a Monday.com board using GraphQL with cursor pagination.
+        Caches results for 60 seconds to optimize response times.
         """
+        now = time.time()
+        if board_id in _board_cache:
+            cache_entry = _board_cache[board_id]
+            if now - cache_entry["timestamp"] < CACHE_TTL_SECONDS:
+                logger.info(f"Serving board ID {board_id} from 60s in-memory cache.")
+                return cache_entry["data"]
+
         token = self.api_token
         if not token or not str(token).strip():
             logger.error("Monday.com API Token (MONDAY_API_TOKEN) is missing.")
@@ -134,12 +146,16 @@ class MondayService:
                     logger.error(f"Error fetching Monday.com board {board_id}: {str(e)}")
                     raise e
 
+        _board_cache[board_id] = {
+            "timestamp": time.time(),
+            "data": all_items
+        }
+
         return all_items
 
     async def get_deals(self) -> List[Dict[str, Any]]:
         """
         Dynamically fetches Deals board data directly from Monday.com GraphQL API.
-        No runtime fallback to local Excel dataset allowed.
         """
         deals_id = self.deals_board_id
         if not deals_id:
@@ -151,7 +167,6 @@ class MondayService:
     async def get_work_orders(self) -> List[Dict[str, Any]]:
         """
         Dynamically fetches Work Orders board data directly from Monday.com GraphQL API.
-        No runtime fallback to local Excel dataset allowed.
         """
         wo_id = self.work_orders_board_id
         if not wo_id:

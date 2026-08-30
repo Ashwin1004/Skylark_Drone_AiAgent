@@ -21,32 +21,32 @@ export const ExecutiveMetricCards: React.FC<Props> = ({ metadata }) => {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 my-3">
       {openPipeline && (
-        <div className="bg-[#0b0f19] p-3 rounded-lg border border-slate-800/80 shadow-sm">
-          <div className="flex items-center justify-between text-[11px] text-slate-400 mb-1">
+        <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 shadow-2xs">
+          <div className="flex items-center justify-between text-[11px] text-slate-500 mb-1 font-mono">
             <span>Open Pipeline</span>
-            <TrendingUp className="w-3.5 h-3.5 text-cyan-400" />
+            <TrendingUp className="w-3.5 h-3.5 text-sky-600" />
           </div>
-          <div className="text-base font-bold text-slate-100 font-mono tracking-tight">{openPipeline}</div>
+          <div className="text-base font-extrabold text-slate-900 font-mono tracking-tight">{openPipeline}</div>
         </div>
       )}
 
       {weightedPipeline && (
-        <div className="bg-[#0b0f19] p-3 rounded-lg border border-slate-800/80 shadow-sm">
-          <div className="flex items-center justify-between text-[11px] text-slate-400 mb-1">
+        <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 shadow-2xs">
+          <div className="flex items-center justify-between text-[11px] text-slate-500 mb-1 font-mono">
             <span>Weighted Forecast</span>
-            <Layers className="w-3.5 h-3.5 text-emerald-400" />
+            <Layers className="w-3.5 h-3.5 text-emerald-600" />
           </div>
-          <div className="text-base font-bold text-emerald-400 font-mono tracking-tight">{weightedPipeline}</div>
+          <div className="text-base font-extrabold text-emerald-700 font-mono tracking-tight">{weightedPipeline}</div>
         </div>
       )}
 
       {activeWorkOrders !== undefined && (
-        <div className="bg-[#0b0f19] p-3 rounded-lg border border-slate-800/80 shadow-sm">
-          <div className="flex items-center justify-between text-[11px] text-slate-400 mb-1">
+        <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 shadow-2xs">
+          <div className="flex items-center justify-between text-[11px] text-slate-500 mb-1 font-mono">
             <span>Active Work Orders</span>
-            <Activity className="w-3.5 h-3.5 text-sky-400" />
+            <Activity className="w-3.5 h-3.5 text-purple-600" />
           </div>
-          <div className="text-base font-bold text-slate-100 font-mono tracking-tight">{activeWorkOrders} Ops</div>
+          <div className="text-base font-extrabold text-slate-900 font-mono tracking-tight">{activeWorkOrders} Ops</div>
         </div>
       )}
     </div>

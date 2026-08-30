@@ -1,19 +1,17 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
-  Home,
-  Plus, 
+  Edit3, 
+  Search, 
+  PanelLeft, 
+  MoreHorizontal, 
+  ChevronDown, 
   MessageSquare, 
-  TrendingUp, 
-  PieChart, 
-  FileText, 
-  Search,
-  Star,
-  MoreHorizontal,
-  Edit2,
-  Trash2,
-  Database,
-  Cpu,
-  UserCheck
+  Star, 
+  Edit2, 
+  Trash2, 
+  Pin,
+  Archive,
+  Sparkles
 } from 'lucide-react';
 import { HealthResponse } from '../types';
 
@@ -21,6 +19,7 @@ export interface SavedConversation {
   id: string;
   title: string;
   pinned?: boolean;
+  archived?: boolean;
   timestamp: string;
   messages: any[];
 }
@@ -39,336 +38,543 @@ interface SidebarProps {
   onRenameConversation: (conv: SavedConversation) => void;
   onDeleteConversation: (conv: SavedConversation) => void;
   onOpenCommandPalette: () => void;
+  onToggleArchiveConversation?: (id: string) => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
   activeTab,
   setActiveTab,
-  health,
-  onSelectPrompt,
   onNewChat,
-  onNavigateHome,
   savedConversations,
   activeConversationId,
   onSelectSavedConversation,
   onTogglePinConversation,
   onRenameConversation,
   onDeleteConversation,
-  onOpenCommandPalette
+  onOpenCommandPalette,
+  onToggleArchiveConversation
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [activePopover, setActivePopover] = useState<'pinned' | 'recents' | 'archived' | null>(null);
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
+  const [isPinnedExpanded, setIsPinnedExpanded] = useState(true);
+  const [isArchivedView, setIsArchivedView] = useState(false);
 
-  const isMondayLive = health?.monday_connected;
-  const groqModel = health?.details?.groq_model || 'openai/gpt-oss-120b';
+  const popoverRef = useRef<HTMLDivElement>(null);
 
-  const filteredConversations = savedConversations.filter(c =>
+  // Close floating popovers on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+        setActivePopover(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const unarchivedConversations = savedConversations.filter(c => !c.archived);
+  const archivedConversations = savedConversations.filter(c => c.archived);
+
+  const filteredConversations = unarchivedConversations.filter(c =>
     c.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const pinnedConversations = filteredConversations.filter(c => c.pinned);
   const recentConversations = filteredConversations.filter(c => !c.pinned);
 
+  /* Collapsed Sidebar */
+  if (isCollapsed) {
+    return (
+      <aside className="w-16 bg-[#12100f] text-[#ece7e1] flex flex-col items-center py-4 space-y-4 h-full shrink-0 select-none relative z-20 border-r border-[#262220] transition-all duration-200">
+        
+        {/* Toggle Expand Icon */}
+        <button
+          onClick={() => {
+            setIsCollapsed(false);
+            setActivePopover(null);
+          }}
+          title="Open sidebar"
+          className="p-2 rounded-xl text-[#a69c94] hover:text-white hover:bg-[#262220] transition-colors"
+        >
+          <PanelLeft className="w-5 h-5" />
+        </button>
+
+        {/* New Chat Icon */}
+        <button
+          onClick={() => {
+            onNewChat();
+            setActivePopover(null);
+          }}
+          title="New chat"
+          className="p-2 rounded-xl text-[#d4c8be] hover:text-white hover:bg-[#262220] transition-colors"
+        >
+          <Edit3 className="w-5 h-5" />
+        </button>
+
+        {/* Search Icon */}
+        <button
+          onClick={() => {
+            setIsCollapsed(false);
+            setIsSearchOpen(true);
+            setActivePopover(null);
+          }}
+          title="Search conversations"
+          className="p-2 rounded-xl text-[#a69c94] hover:text-white hover:bg-[#262220] transition-colors"
+        >
+          <Search className="w-5 h-5" />
+        </button>
+
+        {/* Pinned Icon Button (📌) */}
+        <button
+          onClick={() => setActivePopover(activePopover === 'pinned' ? null : 'pinned')}
+          title="Pinned conversations"
+          className={`p-2 rounded-xl transition-colors ${
+            activePopover === 'pinned' ? 'bg-[#262220] text-white' : 'text-[#a69c94] hover:text-white hover:bg-[#262220]'
+          }`}
+        >
+          <Pin className="w-5 h-5" />
+        </button>
+
+        {/* Recent Icon Button (💬) */}
+        <button
+          onClick={() => setActivePopover(activePopover === 'recents' ? null : 'recents')}
+          title="Recent conversations"
+          className={`p-2 rounded-xl transition-colors ${
+            activePopover === 'recents' ? 'bg-[#262220] text-white' : 'text-[#a69c94] hover:text-white hover:bg-[#262220]'
+          }`}
+        >
+          <MessageSquare className="w-5 h-5" />
+        </button>
+
+        {/* Archived Icon Button (📦) */}
+        <button
+          onClick={() => setActivePopover(activePopover === 'archived' ? null : 'archived')}
+          title="Archived conversations"
+          className={`p-2 rounded-xl transition-colors ${
+            activePopover === 'archived' ? 'bg-[#262220] text-white' : 'text-[#a69c94] hover:text-white hover:bg-[#262220]'
+          }`}
+        >
+          <Archive className="w-5 h-5" />
+        </button>
+
+        {/* FLOATING POPOVER DROPDOWN MENU */}
+        {activePopover && (
+          <div
+            ref={popoverRef}
+            className="absolute left-18 top-16 z-50 w-72 bg-[#201d1b] border border-[#36302d] rounded-2xl shadow-2xl p-3.5 animate-in fade-in zoom-in-95 duration-150 text-white space-y-2 max-h-96 overflow-y-auto"
+          >
+            {/* Popover Header Title */}
+            <div className="text-sm font-bold text-[#a69c94] px-2 pt-1 pb-2 border-b border-[#2b2725] uppercase tracking-wider">
+              {activePopover === 'pinned' && 'Pinned'}
+              {activePopover === 'recents' && 'Recents'}
+              {activePopover === 'archived' && 'Archived'}
+            </div>
+
+            {/* Pinned Popover List */}
+            {activePopover === 'pinned' && (
+              <div className="space-y-1">
+                {pinnedConversations.length === 0 ? (
+                  <div className="px-2 py-3 text-xs text-[#786e66] italic text-center">
+                    No pinned conversations
+                  </div>
+                ) : (
+                  pinnedConversations.map((conv) => (
+                    <button
+                      key={conv.id}
+                      onClick={() => {
+                        onSelectSavedConversation(conv);
+                        setActivePopover(null);
+                      }}
+                      className={`w-full text-left truncate px-3 py-2.5 rounded-xl text-sm font-medium transition-colors flex items-center gap-3 ${
+                        activeConversationId === conv.id
+                          ? 'bg-[#2b2725] text-white font-semibold'
+                          : 'text-[#d4c8be] hover:text-white hover:bg-[#2b2725]'
+                      }`}
+                    >
+                      <MessageSquare className="w-4 h-4 text-white shrink-0 stroke-[1.75]" />
+                      <span className="truncate">{conv.title}</span>
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+
+            {/* Recents Popover List */}
+            {activePopover === 'recents' && (
+              <div className="space-y-1">
+                {recentConversations.length === 0 ? (
+                  <div className="px-2 py-3 text-xs text-[#786e66] italic text-center">
+                    No recent conversations
+                  </div>
+                ) : (
+                  recentConversations.map((conv) => (
+                    <button
+                      key={conv.id}
+                      onClick={() => {
+                        onSelectSavedConversation(conv);
+                        setActivePopover(null);
+                      }}
+                      className={`w-full text-left truncate px-3 py-2.5 rounded-xl text-sm font-medium transition-colors flex items-center gap-3 ${
+                        activeConversationId === conv.id
+                          ? 'bg-[#2b2725] text-white font-semibold'
+                          : 'text-[#d4c8be] hover:text-white hover:bg-[#2b2725]'
+                      }`}
+                    >
+                      <MessageSquare className="w-4 h-4 text-[#a69c94] shrink-0 stroke-[1.75]" />
+                      <span className="truncate">{conv.title}</span>
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+
+            {/* Archived Popover List */}
+            {activePopover === 'archived' && (
+              <div className="space-y-1">
+                {archivedConversations.length === 0 ? (
+                  <div className="px-2 py-3 text-xs text-[#786e66] italic text-center">
+                    No archived conversations
+                  </div>
+                ) : (
+                  archivedConversations.map((conv) => (
+                    <button
+                      key={conv.id}
+                      onClick={() => {
+                        onSelectSavedConversation(conv);
+                        setActivePopover(null);
+                      }}
+                      className={`w-full text-left truncate px-3 py-2.5 rounded-xl text-sm font-medium transition-colors flex items-center justify-between ${
+                        activeConversationId === conv.id
+                          ? 'bg-[#2b2725] text-white font-semibold'
+                          : 'text-[#d4c8be] hover:text-white hover:bg-[#2b2725]'
+                      }`}
+                    >
+                      <span className="truncate flex items-center gap-3">
+                        <Archive className="w-4 h-4 text-[#a69c94] shrink-0" />
+                        <span className="truncate">{conv.title}</span>
+                      </span>
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+
+          </div>
+        )}
+
+      </aside>
+    );
+  }
+
+  /* Full Expanded Sidebar (Larger Word Size) */
   return (
-    <aside className="w-64 bg-[#0b0f19] border-r border-slate-800/60 flex flex-col h-full shrink-0 select-none text-slate-300 relative">
+    <aside className="w-68 sm:w-72 bg-[#12100f] text-[#ece7e1] flex flex-col h-full shrink-0 select-none relative z-10 border-r border-[#262220] transition-all duration-200">
       
-      {/* Brand Header */}
-      <div 
-        onClick={onNavigateHome}
-        className="p-4 border-b border-slate-800/50 flex items-center justify-between cursor-pointer hover:bg-slate-900/40 transition-colors group"
-      >
-        <div>
-          <h1 className="text-sm font-bold text-slate-100 tracking-tight group-hover:text-cyan-400 transition-colors">
-            Skylark BI
-          </h1>
-          <p className="text-[11px] text-slate-400 font-sans">Executive Intelligence</p>
+      {/* Header Top Row */}
+      <div className="p-4 flex items-center justify-between">
+        <button 
+          onClick={onNewChat}
+          className="text-lg font-extrabold text-white tracking-tight hover:opacity-90 transition-opacity flex items-center gap-2"
+        >
+          <span>Skylark Agent</span>
+        </button>
+
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => setIsSearchOpen(!isSearchOpen)}
+            title="Search conversations"
+            className="p-1.5 rounded-lg text-[#a69c94] hover:text-white hover:bg-[#262220] transition-colors"
+          >
+            <Search className="w-4.5 h-4.5" />
+          </button>
+          <button
+            onClick={() => setIsCollapsed(true)}
+            title="Close sidebar"
+            className="p-1.5 rounded-lg text-[#a69c94] hover:text-white hover:bg-[#262220] transition-colors"
+          >
+            <PanelLeft className="w-4.5 h-4.5" />
+          </button>
         </div>
       </div>
 
-      {/* New Conversation Action & Cmd+K Quick Search */}
-      <div className="p-3 space-y-2 border-b border-slate-800/50">
+      {/* Optional Search Bar Overlay */}
+      {isSearchOpen && (
+        <div className="px-4 pb-2 animate-in fade-in duration-150">
+          <input
+            type="text"
+            autoFocus
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search chat history..."
+            className="w-full bg-[#201d1b] text-white placeholder-[#8c7f76] text-sm rounded-xl px-3 py-2 border border-[#36302d] focus:outline-none focus:border-[#a88975]"
+          />
+        </div>
+      )}
+
+      {/* Primary Actions: New Chat & Archived Button */}
+      <div className="px-3 py-2 space-y-1 border-b border-[#262220]/80">
         <button
           onClick={onNewChat}
-          className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-gradient-to-r from-sky-600 to-cyan-600 hover:from-sky-500 hover:to-cyan-500 text-xs font-medium text-white transition-all shadow-md shadow-cyan-600/20"
+          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-[#201d1b] text-white transition-colors text-left font-semibold text-sm sm:text-base"
         >
-          <Plus className="w-4 h-4" />
-          <span>New conversation</span>
+          <Edit3 className="w-4.5 h-4.5 text-white shrink-0" />
+          <span>New chat</span>
         </button>
 
         <button
-          onClick={onOpenCommandPalette}
-          className="w-full flex items-center justify-between px-3 py-1.5 rounded-lg bg-slate-900/70 hover:bg-slate-900 border border-slate-800 text-[11px] text-slate-400 transition-colors"
+          onClick={() => setIsArchivedView(!isArchivedView)}
+          className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm sm:text-base transition-colors ${
+            isArchivedView ? 'bg-[#201d1b] text-white font-semibold' : 'text-[#d4c8be] hover:text-white hover:bg-[#201d1b]'
+          }`}
         >
-          <span className="flex items-center gap-1.5">
-            <Search className="w-3 h-3 text-slate-500" />
-            <span>Search or jump...</span>
+          <span className="flex items-center gap-3">
+            <Archive className="w-4.5 h-4.5 text-[#a69c94] shrink-0" />
+            <span>Archived</span>
           </span>
-          <kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-[9px] font-mono text-slate-400 border border-slate-700">
-            ⌘K
-          </kbd>
+          <span className="text-xs font-mono text-[#8c7f76]">
+            ({archivedConversations.length})
+          </span>
         </button>
       </div>
 
-      {/* Search Input Filter */}
-      <div className="px-3 pt-2">
-        <input
-          type="text"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Filter conversations..."
-          className="w-full bg-slate-950/60 text-slate-200 placeholder-slate-500 text-[11px] rounded-lg px-2.5 py-1.5 border border-slate-800/80 focus:border-cyan-500/60 focus:outline-none"
-        />
-      </div>
-
-      {/* Sidebar Content */}
-      <div className="flex-1 overflow-y-auto px-3 py-2 space-y-4 text-xs">
+      {/* Conversations Thread Lists */}
+      <div className="flex-1 overflow-y-auto px-3 py-3 space-y-5 text-sm">
         
-        {/* PINNED CONVERSATIONS */}
-        {pinnedConversations.length > 0 && (
+        {isArchivedView ? (
+          /* ARCHIVED VIEW */
           <div>
-            <div className="px-2 mb-1 text-[10px] font-mono uppercase tracking-wider text-amber-400 font-semibold flex items-center gap-1">
-              <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
-              <span>Pinned</span>
+            <div className="px-3 mb-2 text-xs font-bold uppercase tracking-wider text-[#a69c94]">
+              Archived Conversations
             </div>
-            <div className="space-y-0.5">
-              {pinnedConversations.map((conv) => (
-                <div key={conv.id} className="relative group/item">
-                  <button
-                    onClick={() => onSelectSavedConversation(conv)}
-                    className={`w-full text-left truncate px-2.5 py-1.5 rounded-md text-xs transition-colors flex items-center justify-between pr-7 ${
-                      activeConversationId === conv.id && activeTab === 'ask'
-                        ? 'bg-slate-800/90 text-slate-100 font-medium border border-slate-700/60'
-                        : 'text-slate-300 hover:text-slate-100 hover:bg-slate-900/60'
-                    }`}
-                    title={conv.title}
-                  >
-                    <span className="truncate flex items-center gap-1.5">
-                      <span className="text-amber-400 text-[10px]">★</span>
-                      <span className="truncate">{conv.title}</span>
-                    </span>
-                  </button>
+            <div className="space-y-1">
+              {archivedConversations.length === 0 ? (
+                <div className="px-3 py-2 text-xs text-[#786e66] italic">
+                  No archived conversations
+                </div>
+              ) : (
+                archivedConversations.map((conv) => (
+                  <div key={conv.id} className="relative group/item">
+                    <button
+                      onClick={() => onSelectSavedConversation(conv)}
+                      className={`w-full text-left truncate px-3 py-2 rounded-xl text-sm font-medium transition-colors flex items-center justify-between pr-8 ${
+                        activeConversationId === conv.id
+                          ? 'bg-[#262220] text-white font-semibold'
+                          : 'text-[#d4c8be] hover:text-white hover:bg-[#1a1716]'
+                      }`}
+                      title={conv.title}
+                    >
+                      <span className="truncate flex items-center gap-2.5">
+                        <Archive className="w-4 h-4 text-[#a69c94] shrink-0" />
+                        <span className="truncate">{conv.title}</span>
+                      </span>
+                    </button>
 
-                  {/* ⋯ Context Menu Trigger */}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setMenuOpenId(menuOpenId === conv.id ? null : conv.id);
-                    }}
-                    className="absolute right-1 top-1.5 p-1 rounded hover:bg-slate-700 text-slate-400 hover:text-slate-200 opacity-0 group-hover/item:opacity-100 transition-opacity"
-                  >
-                    <MoreHorizontal className="w-3.5 h-3.5" />
-                  </button>
+                    {/* Unarchive Action */}
+                    {onToggleArchiveConversation && (
+                      <button
+                        onClick={() => onToggleArchiveConversation(conv.id)}
+                        title="Unarchive conversation"
+                        className="absolute right-1 top-2 p-1 rounded hover:bg-[#36302d] text-[#8c7f76] hover:text-white opacity-0 group-hover/item:opacity-100 transition-opacity text-xs"
+                      >
+                        Unarchive
+                      </button>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        ) : (
+          /* STANDARD PINNED & RECENTS VIEW */
+          <>
+            {/* PINNED SECTION */}
+            <div>
+              <button
+                onClick={() => setIsPinnedExpanded(!isPinnedExpanded)}
+                className="w-full flex items-center justify-between px-3 mb-2 text-xs font-bold uppercase tracking-wider text-[#a69c94] hover:text-white transition-colors"
+              >
+                <span>Pinned</span>
+                <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isPinnedExpanded ? '' : '-rotate-90'}`} />
+              </button>
 
-                  {/* Context Dropdown Menu */}
-                  {menuOpenId === conv.id && (
-                    <div className="absolute right-0 top-7 z-50 w-36 bg-[#0f1524] border border-slate-700 rounded-lg shadow-xl py-1 text-xs text-slate-200 animate-in fade-in duration-100">
-                      <button
-                        onClick={() => {
-                          onRenameConversation(conv);
-                          setMenuOpenId(null);
-                        }}
-                        className="w-full text-left px-3 py-1.5 hover:bg-slate-800 flex items-center gap-2"
-                      >
-                        <Edit2 className="w-3 h-3 text-cyan-400" /> Rename
-                      </button>
-                      <button
-                        onClick={() => {
-                          onTogglePinConversation(conv.id);
-                          setMenuOpenId(null);
-                        }}
-                        className="w-full text-left px-3 py-1.5 hover:bg-slate-800 flex items-center gap-2"
-                      >
-                        <Star className="w-3 h-3 text-amber-400" /> Unpin
-                      </button>
-                      <button
-                        onClick={() => {
-                          onDeleteConversation(conv);
-                          setMenuOpenId(null);
-                        }}
-                        className="w-full text-left px-3 py-1.5 hover:bg-rose-950/60 text-rose-300 flex items-center gap-2"
-                      >
-                        <Trash2 className="w-3 h-3 text-rose-400" /> Delete
-                      </button>
+              {isPinnedExpanded && (
+                <div className="space-y-1">
+                  {pinnedConversations.length === 0 ? (
+                    <div className="px-3 py-1 text-xs text-[#786e66] italic">
+                      No pinned conversations
                     </div>
+                  ) : (
+                    pinnedConversations.map((conv) => (
+                      <div key={conv.id} className="relative group/item">
+                        <button
+                          onClick={() => onSelectSavedConversation(conv)}
+                          className={`w-full text-left truncate px-3 py-2 rounded-xl text-sm font-medium transition-colors flex items-center justify-between pr-8 ${
+                            activeConversationId === conv.id
+                              ? 'bg-[#262220] text-white font-semibold'
+                              : 'text-[#d4c8be] hover:text-white hover:bg-[#1a1716]'
+                          }`}
+                          title={conv.title}
+                        >
+                          <span className="truncate flex items-center gap-2.5">
+                            <MessageSquare className="w-4 h-4 text-[#d4c8be] shrink-0 stroke-[1.75]" />
+                            <span className="truncate">{conv.title}</span>
+                          </span>
+                        </button>
+
+                        {/* ⋯ Context Menu Trigger */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setMenuOpenId(menuOpenId === conv.id ? null : conv.id);
+                          }}
+                          className="absolute right-1.5 top-2 p-1 rounded hover:bg-[#36302d] text-[#8c7f76] hover:text-white opacity-0 group-hover/item:opacity-100 transition-opacity"
+                        >
+                          <MoreHorizontal className="w-4 h-4" />
+                        </button>
+
+                        {/* Context Dropdown Menu */}
+                        {menuOpenId === conv.id && (
+                          <div className="absolute right-0 top-8 z-50 w-40 bg-[#201d1b] border border-[#36302d] rounded-xl shadow-2xl py-1.5 text-xs text-white animate-in fade-in duration-100">
+                            <button
+                              onClick={() => {
+                                onRenameConversation(conv);
+                                setMenuOpenId(null);
+                              }}
+                              className="w-full text-left px-3.5 py-2 hover:bg-[#2b2725] flex items-center gap-2.5"
+                            >
+                              <Edit2 className="w-3.5 h-3.5 text-[#e2b897]" /> Rename
+                            </button>
+                            <button
+                              onClick={() => {
+                                onTogglePinConversation(conv.id);
+                                setMenuOpenId(null);
+                              }}
+                              className="w-full text-left px-3.5 py-2 hover:bg-[#2b2725] flex items-center gap-2.5"
+                            >
+                              <Star className="w-3.5 h-3.5 text-[#e2b897]" /> Unpin
+                            </button>
+                            {onToggleArchiveConversation && (
+                              <button
+                                onClick={() => {
+                                  onToggleArchiveConversation(conv.id);
+                                  setMenuOpenId(null);
+                                }}
+                                className="w-full text-left px-3.5 py-2 hover:bg-[#2b2725] flex items-center gap-2.5 text-[#a69c94]"
+                              >
+                                <Archive className="w-3.5 h-3.5" /> Archive
+                              </button>
+                            )}
+                            <button
+                              onClick={() => {
+                                onDeleteConversation(conv);
+                                setMenuOpenId(null);
+                              }}
+                              className="w-full text-left px-3.5 py-2 hover:bg-rose-950/40 text-rose-300 flex items-center gap-2.5"
+                            >
+                              <Trash2 className="w-3.5 h-3.5 text-rose-400" /> Delete
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ))
                   )}
                 </div>
-              ))}
+              )}
             </div>
-          </div>
-        )}
 
-        {/* RECENT CONVERSATIONS */}
-        {recentConversations.length > 0 && (
-          <div>
-            <div className="px-2 mb-1 text-[10px] font-mono uppercase tracking-wider text-slate-500 font-semibold">
-              Recent
-            </div>
-            <div className="space-y-0.5">
-              {recentConversations.map((conv) => (
-                <div key={conv.id} className="relative group/item">
-                  <button
-                    onClick={() => onSelectSavedConversation(conv)}
-                    className={`w-full text-left truncate px-2.5 py-1.5 rounded-md text-xs transition-colors flex items-center justify-between pr-7 ${
-                      activeConversationId === conv.id && activeTab === 'ask'
-                        ? 'bg-slate-800/90 text-slate-100 font-medium border border-slate-700/60'
-                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
-                    }`}
-                    title={conv.title}
-                  >
-                    <span className="truncate">{conv.title}</span>
-                  </button>
+            {/* RECENTS SECTION */}
+            <div>
+              <div className="px-3 mb-2 text-xs font-bold uppercase tracking-wider text-[#a69c94]">
+                Recents
+              </div>
+              <div className="space-y-1">
+                {recentConversations.length === 0 ? (
+                  <div className="px-3 py-1 text-xs text-[#786e66] italic">
+                    No recent conversations
+                  </div>
+                ) : (
+                  recentConversations.map((conv) => (
+                    <div key={conv.id} className="relative group/item">
+                      <button
+                        onClick={() => onSelectSavedConversation(conv)}
+                        className={`w-full text-left truncate px-3 py-2 rounded-xl text-sm font-medium transition-colors flex items-center justify-between pr-8 ${
+                          activeConversationId === conv.id
+                            ? 'bg-[#262220] text-white font-semibold'
+                            : 'text-[#d4c8be] hover:text-white hover:bg-[#1a1716]'
+                        }`}
+                        title={conv.title}
+                      >
+                        <span className="truncate flex items-center gap-2.5">
+                          <MessageSquare className="w-4 h-4 text-[#a69c94] shrink-0 stroke-[1.75]" />
+                          <span className="truncate">{conv.title}</span>
+                        </span>
+                      </button>
 
-                  {/* ⋯ Context Menu Trigger */}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setMenuOpenId(menuOpenId === conv.id ? null : conv.id);
-                    }}
-                    className="absolute right-1 top-1.5 p-1 rounded hover:bg-slate-700 text-slate-400 hover:text-slate-200 opacity-0 group-hover/item:opacity-100 transition-opacity"
-                  >
-                    <MoreHorizontal className="w-3.5 h-3.5" />
-                  </button>
+                      {/* ⋯ Context Menu Trigger */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setMenuOpenId(menuOpenId === conv.id ? null : conv.id);
+                        }}
+                        className="absolute right-1.5 top-2 p-1 rounded hover:bg-[#36302d] text-[#8c7f76] hover:text-white opacity-0 group-hover/item:opacity-100 transition-opacity"
+                      >
+                        <MoreHorizontal className="w-4 h-4" />
+                      </button>
 
-                  {/* Context Dropdown Menu */}
-                  {menuOpenId === conv.id && (
-                    <div className="absolute right-0 top-7 z-50 w-36 bg-[#0f1524] border border-slate-700 rounded-lg shadow-xl py-1 text-xs text-slate-200 animate-in fade-in duration-100">
-                      <button
-                        onClick={() => {
-                          onRenameConversation(conv);
-                          setMenuOpenId(null);
-                        }}
-                        className="w-full text-left px-3 py-1.5 hover:bg-slate-800 flex items-center gap-2"
-                      >
-                        <Edit2 className="w-3 h-3 text-cyan-400" /> Rename
-                      </button>
-                      <button
-                        onClick={() => {
-                          onTogglePinConversation(conv.id);
-                          setMenuOpenId(null);
-                        }}
-                        className="w-full text-left px-3 py-1.5 hover:bg-slate-800 flex items-center gap-2"
-                      >
-                        <Star className="w-3 h-3 text-amber-400" /> Pin
-                      </button>
-                      <button
-                        onClick={() => {
-                          onDeleteConversation(conv);
-                          setMenuOpenId(null);
-                        }}
-                        className="w-full text-left px-3 py-1.5 hover:bg-rose-950/60 text-rose-300 flex items-center gap-2"
-                      >
-                        <Trash2 className="w-3 h-3 text-rose-400" /> Delete
-                      </button>
+                      {/* Context Dropdown Menu */}
+                      {menuOpenId === conv.id && (
+                        <div className="absolute right-0 top-8 z-50 w-40 bg-[#201d1b] border border-[#36302d] rounded-xl shadow-2xl py-1.5 text-xs text-white animate-in fade-in duration-100">
+                          <button
+                            onClick={() => {
+                              onRenameConversation(conv);
+                              setMenuOpenId(null);
+                            }}
+                            className="w-full text-left px-3.5 py-2 hover:bg-[#2b2725] flex items-center gap-2.5"
+                          >
+                            <Edit2 className="w-3.5 h-3.5 text-[#e2b897]" /> Rename
+                          </button>
+                          <button
+                            onClick={() => {
+                              onTogglePinConversation(conv.id);
+                              setMenuOpenId(null);
+                            }}
+                            className="w-full text-left px-3.5 py-2 hover:bg-[#2b2725] flex items-center gap-2.5"
+                          >
+                            <Star className="w-3.5 h-3.5 text-[#e2b897]" /> Pin
+                          </button>
+                          {onToggleArchiveConversation && (
+                            <button
+                              onClick={() => {
+                                onToggleArchiveConversation(conv.id);
+                                setMenuOpenId(null);
+                              }}
+                              className="w-full text-left px-3.5 py-2 hover:bg-[#2b2725] flex items-center gap-2.5 text-[#a69c94]"
+                            >
+                              <Archive className="w-3.5 h-3.5" /> Archive
+                            </button>
+                          )}
+                          <button
+                            onClick={() => {
+                              onDeleteConversation(conv);
+                              setMenuOpenId(null);
+                            }}
+                            className="w-full text-left px-3.5 py-2 hover:bg-rose-950/40 text-rose-300 flex items-center gap-2.5"
+                          >
+                            <Trash2 className="w-3.5 h-3.5 text-rose-400" /> Delete
+                          </button>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-              ))}
+                  ))
+                )}
+              </div>
             </div>
-          </div>
+          </>
         )}
 
-        {/* WORKSPACE NAVIGATION */}
-        <div>
-          <div className="px-2 mb-1 text-[10px] font-mono uppercase tracking-wider text-slate-500 font-semibold">
-            Workspace
-          </div>
-          <nav className="space-y-0.5">
-            <button
-              onClick={onNavigateHome}
-              className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs transition-colors ${
-                activeTab === 'home'
-                  ? 'bg-slate-800 text-slate-100 font-medium'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
-              }`}
-            >
-              <Home className="w-3.5 h-3.5 text-cyan-400" />
-              <span>Executive Overview</span>
-            </button>
-
-            <button
-              onClick={onNewChat}
-              className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs transition-colors ${
-                activeTab === 'ask' && !activeConversationId
-                  ? 'bg-slate-800 text-slate-100 font-medium'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
-              }`}
-            >
-              <MessageSquare className="w-3.5 h-3.5 text-sky-400" />
-              <span>Ask BI Agent</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('pipeline')}
-              className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs transition-colors ${
-                activeTab === 'pipeline'
-                  ? 'bg-slate-800 text-slate-100 font-medium'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
-              }`}
-            >
-              <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Sales Pipeline</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('sectors')}
-              className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs transition-colors ${
-                activeTab === 'sectors'
-                  ? 'bg-slate-800 text-slate-100 font-medium'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
-              }`}
-            >
-              <PieChart className="w-3.5 h-3.5 text-purple-400" />
-              <span>Sector Insights</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('leadership')}
-              className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs transition-colors ${
-                activeTab === 'leadership'
-                  ? 'bg-slate-800 text-slate-100 font-medium'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
-              }`}
-            >
-              <FileText className="w-3.5 h-3.5 text-amber-400" />
-              <span>Leadership Brief</span>
-            </button>
-          </nav>
-        </div>
-
-        {/* CONNECTED SYSTEMS */}
-        <div>
-          <div className="px-2 mb-1 text-[10px] font-mono uppercase tracking-wider text-slate-500 font-semibold">
-            Connected Systems
-          </div>
-          <div className="space-y-1 text-[11px] font-mono">
-            <div className="px-2.5 py-1 rounded bg-slate-900/50 border border-slate-800/50 flex items-center justify-between text-slate-400">
-              <span className="flex items-center gap-1.5">
-                <Database className="w-3 h-3 text-cyan-400" /> Monday.com
-              </span>
-              <span className={`w-1.5 h-1.5 rounded-full ${isMondayLive ? 'bg-emerald-400' : 'bg-rose-500'}`}></span>
-            </div>
-            <div className="px-2.5 py-1 rounded bg-slate-900/50 border border-slate-800/50 flex items-center justify-between text-slate-400">
-              <span className="flex items-center gap-1.5">
-                <Cpu className="w-3 h-3 text-purple-400" /> Groq
-              </span>
-              <span className="text-[10px] text-slate-300 truncate max-w-[80px]" title={groqModel}>
-                {groqModel}
-              </span>
-            </div>
-          </div>
-        </div>
-
-      </div>
-
-      {/* Account / User Footer */}
-      <div className="p-3 border-t border-slate-800/60 flex items-center gap-2.5 text-xs text-slate-400 bg-slate-950/40">
-        <div className="w-7 h-7 rounded-full bg-cyan-950 border border-cyan-800 flex items-center justify-center text-cyan-400 text-xs font-bold font-mono">
-          EX
-        </div>
-        <div className="truncate">
-          <span className="block text-slate-200 font-medium text-[11px] truncate">Executive Workspace</span>
-          <span className="block text-[10px] text-slate-500 font-mono">Skylark Drones</span>
-        </div>
       </div>
 
     </aside>

@@ -65,6 +65,8 @@ class AIService:
         if deductions:
             dq_note += " (" + "; ".join(deductions[:2]) + ")"
 
+        is_dq_query = intent == "data_quality_report" or "quality" in question.lower() or "health" in question.lower()
+
         if intent == "pipeline_overview":
             open_pipe = metrics.get("open_pipeline_formatted", "₹0")
             total_pipe = metrics.get("total_pipeline_formatted", "₹0")
@@ -73,25 +75,35 @@ class AIService:
             weighted_val = metrics.get("weighted_pipeline_formatted", "₹0")
             avg_deal = metrics.get("avg_deal_formatted", "₹0")
 
-            return f"""### 📊 Sales Pipeline Overview ({exp.get('timeframe_resolved', 'All Time')})
+            dq_section = f"\n### Data Quality Report\n- {dq_note}" if is_dq_query else ""
 
-**Headline**: Skylark holds **{open_pipe}** in open pipeline value across **{open_cnt} open deals** (Total pipeline: {total_pipe} across {tot_cnt} deals).
+            return f"""### Headline
+Skylark holds **{open_pipe}** in open pipeline value across **{open_cnt} open deals** (Total pipeline: {total_pipe} across {tot_cnt} deals).
 
-#### Key Metrics:
+### Key Metrics
 - **Open Pipeline Value**: {open_pipe}
 - **Weighted Pipeline Value**: {weighted_val} (weighted by closure probability)
 - **Average Open Deal Size**: {avg_deal}
 - **Open Deals**: {open_cnt} | **Won Deals**: {metrics.get('won_deals', 0)} | **Lost Deals**: {metrics.get('lost_deals', 0)}
 
-#### 💡 Key Insights:
-- Weighted forecast stands at **{weighted_val}**, providing a realistic revenue trajectory.
-- Conversion efforts should focus on late-stage commercial proposals.
+### What the Data Shows
+- Weighted forecast stands at **{weighted_val}**, providing a realistic probability-adjusted revenue trajectory.
+- Open pipeline value is concentrated in active commercial negotiations across key sectors.
 
-#### ⚠️ Risks & Caveats:
-- Large deal size concentration can create revenue variance if top deals delay.
+### Priorities
+- Accelerate conversion of open opportunities in Proposal/Commercials stage.
+- Establish weekly BD review cadence to progress early-stage deals.
 
-#### 🛡️ Data Quality Note:
-- {dq_note}
+### Risks & Data Caveats
+- **Pipeline concentration risk**: A significant portion of pipeline value is held in top opportunities, creating revenue variance if delays occur.
+- **Forecast uncertainty**: Weighted pipeline is lower than raw open pipeline value due to probability adjustments.
+
+### Recommended Actions
+1. **Deal acceleration** — Prioritize top open opportunities and schedule commercial closure checkpoints.
+2. **Stage velocity** — Focus BD effort on advancing deals out of generic early stages.
+
+### Bottom Line
+Open pipeline holds solid revenue potential, but execution focus must be on closing top commercial deals this quarter.{dq_section}
 """
 
         elif intent == "sector_analysis":
@@ -99,91 +111,64 @@ class AIService:
             sec_wo = metrics.get("work_orders_by_sector", [])
             target = metrics.get("target_sector", "All Sectors")
 
-            lines = [f"### 🏢 Sector Performance Deep-Dive: {target}", ""]
-            lines.append(f"**Headline**: Performance summary for **{target}** across Sales Pipeline and Operational Execution.\n")
-            lines.append("#### 📈 Sales Pipeline by Sector:")
+            lines = [f"### Headline", f"Sector performance summary for **{target}** across Sales Pipeline and Operational Execution.\n"]
+            lines.append("### Key Metrics")
             for s in sec_deals:
-                lines.append(f"- **{s['sector']}**: {s['open_pipeline_formatted']} open pipeline ({s['open_deals']} deals, {s['win_rate_pct']}% win rate)")
+                lines.append(f"- **{s['sector']} Deals**: {s['open_pipeline_formatted']} open pipeline ({s['open_deals']} deals, {s['win_rate_pct']}% win rate)")
 
             if sec_wo:
-                lines.append("\n#### ⚙️ Operational Execution by Sector:")
+                lines.append("\n### Operational Execution by Sector")
                 for w in sec_wo:
-                    lines.append(f"- **{w['sector']}**: {w['order_value_formatted']} active order value ({w['active_work_orders']} active work orders, {w['billed_formatted']} billed)")
+                    lines.append(f"- **{w['sector']} Work Orders**: {w['order_value_formatted']} active order value ({w['active_work_orders']} active work orders, {w['billed_formatted']} billed)")
 
-            lines.append(f"\n#### 🛡️ Data Quality Note:\n- {dq_note}")
-            return "\n".join(lines)
+            lines.append("\n### Risks & Data Caveats")
+            lines.append("- **Sector dependency risk**: Revenue generation is heavily weighted toward primary active sectors.")
+            lines.append("- **Low conversion risk**: Win-rate variances across sectors indicate conversion friction in specific verticals.")
 
-        elif intent == "opportunity_analysis":
-            opps = metrics.get("top_opportunities", [])
-            lines = ["### 🚀 Top Strategic Opportunities", ""]
-            lines.append("**Headline**: Top open deals ranked deterministically by Weighted Value (Deal Value × Closure Probability).\n")
-            lines.append("#### Key Opportunities:")
-            for o in opps:
-                lines.append(f"{o['rank']}. **{o['deal_name']}** ({o['customer']}) - **{o['deal_value_formatted']}** (Prob: {o['probability_pct']}%, Weighted: {o['weighted_formatted']}) | Sector: {o['sector']} | Stage: {o['stage']}")
+            lines.append("\n### Recommended Actions")
+            lines.append("1. **Sector diversification** — Expand deal qualification in secondary growth sectors.")
+            lines.append("2. **Win-rate optimization** — Analyze historical lost opportunities to identify sector-specific conversion blockers.")
 
-            lines.append(f"\n#### 🛡️ Data Quality Note:\n- {dq_note}")
+            lines.append("\n### Bottom Line")
+            lines.append(f"Sector performance in {target} shows active commercial traction, requiring targeted deal acceleration to maximize revenue conversion.")
+
+            if is_dq_query:
+                lines.append(f"\n### Data Quality Report\n- {dq_note}")
+
             return "\n".join(lines)
 
         elif intent == "billing_analysis":
             total_unbilled = metrics.get("total_unbilled_formatted", "₹0")
             affected_cnt = metrics.get("work_orders_with_unbilled_count", 0)
             priorities = metrics.get("priority_work_orders", [])
-            limitation = metrics.get("limitation_note", "")
 
-            lines = ["### 💳 Deterministic Billing & Invoicing Analysis", ""]
-            lines.append(f"**Headline**: **{total_unbilled}** is currently stuck in unbilled work across **{affected_cnt} work orders**.")
+            lines = ["### Headline", f"**{total_unbilled}** in unbilled work is currently pending invoice generation across **{affected_cnt} active work orders**.\n"]
             
-            if limitation:
-                lines.append(f"\n⚠️ **Data Caveat**: {limitation}")
+            lines.append("### Key Metrics")
+            lines.append(f"- **Total Pending Unbilled**: {total_unbilled}")
+            lines.append(f"- **Work Orders Pending Invoicing**: {affected_cnt}")
 
-            lines.append("\n#### 🎯 Top Invoicing Priorities:")
+            lines.append("\n### Priorities")
             if priorities:
                 for idx, item in enumerate(priorities[:5], 1):
-                    lines.append(f"{idx}. **{item['work_order']}** ({item['customer']}) — **{item['unbilled_amount_formatted']}** [{item['priority']} PRIORITY]\n   - *Status*: {item['execution_status']} | *Reason*: {item['reason']}")
+                    lines.append(f"{idx}. **{item['work_order']}** ({item['customer']}) — **{item['unbilled_amount_formatted']}** [{item['priority']} PRIORITY]")
             else:
                 lines.append("- No active work orders requiring immediate billing prioritization.")
 
-            lines.append(f"\n#### 🛡️ Data Quality Audit:\n- {dq_note}")
-            return "\n".join(lines)
+            lines.append("\n### Risks & Data Caveats")
+            lines.append("- **Billing lag risk**: Unbilled project milestones create a gap between operational execution and cash flow realization.")
+            lines.append("- **Cash-flow risk**: Delayed invoicing extends working capital cycles.")
 
-        elif intent == "work_order_analysis":
-            active_cnt = metrics.get("active_work_orders", 0)
-            tot_cnt = metrics.get("total_work_orders", 0)
-            order_val = metrics.get("total_order_formatted", "₹0")
-            billed = metrics.get("billed_formatted", "₹0")
-            collected = metrics.get("collected_formatted", "₹0")
-            pending_billing = metrics.get("pending_billing_formatted", "₹0")
-            receivables = metrics.get("receivables_formatted", "₹0")
+            lines.append("\n### Recommended Actions")
+            lines.append("1. **Billing acceleration** — Immediately issue tax invoices for high-priority completed project milestones.")
+            lines.append("2. **Milestone tracking** — Establish automated sign-off triggers upon milestone completion.")
 
-            return f"""### ⚙️ Operational Work Order & Financial Analysis
+            lines.append("\n### Bottom Line")
+            lines.append("Prioritizing invoice issuance for unbilled work orders will immediately unlock cash flow.")
 
-**Headline**: Skylark is currently executing **{active_cnt} active work orders** out of **{tot_cnt} total work orders**, representing **{order_val}** total contract value.
+            if is_dq_query:
+                lines.append(f"\n### Data Quality Report\n- {dq_note}")
 
-#### Operational & Financial Summary:
-- **Active Work Orders**: {active_cnt}
-- **Completed Projects**: {metrics.get('completed_work_orders', 0)}
-- **Total Contract Value**: {order_val}
-- **Total Billed Value**: {billed}
-- **Total Collected Amount**: {collected}
-- **Pending Invoicing (Unbilled Ops)**: {pending_billing}
-- **Outstanding Receivables**: {receivables}
-
-#### 💡 Key Insights:
-- **{pending_billing}** remains to be billed upon project milestone completion.
-- **{receivables}** is currently in receivables awaiting cash collection.
-
-#### 🛡️ Data Quality Note:
-- {dq_note}
-"""
-
-        elif intent == "owner_analytics":
-            owners = metrics.get("owner_breakdown", [])
-            lines = ["### 👤 BD / KAM Owner Performance & Pipeline Breakdown", ""]
-            lines.append(f"**Headline**: Open pipeline distribution managed across **{metrics.get('total_owners', 0)} BD/KAM personnel**.")
-            lines.append("\n#### 📈 Pipeline Value by Owner:")
-            for o in owners[:5]:
-                lines.append(f"- **{o['owner']}**: **{o['open_pipeline_formatted']}** open pipeline ({o['open_deals_count']} deals, Weighted: {o['weighted_pipeline_formatted']})")
-            lines.append(f"\n#### 🛡️ Data Quality Note:\n- {dq_note}")
             return "\n".join(lines)
 
         elif intent == "deal_risk_analysis":
@@ -193,70 +178,77 @@ class AIService:
             h_thresh = metrics.get("high_value_threshold_formatted", "₹1 Cr")
             l_prob = metrics.get("low_probability_threshold_pct", 20)
             q_cnt = metrics.get("qualifying_count", 0)
-            excl_cnt = metrics.get("excluded_missing_values_count", 0)
             concentration_insight = metrics.get("top_concentration_insight", "")
 
-            lines = ["### ⚠️ High-Value / Low-Probability Deal Risk Analysis", ""]
-            lines.append(f"**Headline**: **{q_cnt} qualifying high-value open deals** were identified representing **{comb_deal}** in combined deal value and **{comb_weighted}** in combined weighted pipeline value.")
-            lines.append(f"\n#### 📋 Applied Business Criteria:")
+            lines = ["### Headline", f"Identified **{q_cnt} high-value open deals** representing **{comb_deal}** in total deal value but only **{comb_weighted}** in weighted forecast.\n"]
+            
+            lines.append("### Key Metrics")
             lines.append(f"- **High Deal Value Threshold**: $\\ge$ {h_thresh}")
             lines.append(f"- **Low Closure Probability Threshold**: $\\le$ {l_prob}%")
-            lines.append(f"- **Qualifying Deals**: {q_cnt} open deals")
-            lines.append(f"- **Combined Contract Value**: {comb_deal}")
-            lines.append(f"- **Combined Weighted Value**: {comb_weighted} (sum of individual deal values × closure probabilities)")
-            if excl_cnt > 0:
-                lines.append(f"- **Excluded Records Scope**: {excl_cnt} open deals were excluded from analysis because monetary deal value or probability was missing.")
+            lines.append(f"- **Qualifying Vulnerable Deals**: {q_cnt}")
+            lines.append(f"- **Combined Deal Value**: {comb_deal}")
+            lines.append(f"- **Combined Weighted Value**: {comb_weighted}")
 
             if concentration_insight:
-                lines.append(f"\n#### 💡 Concentration Insight:\n- **{concentration_insight}**")
+                lines.append(f"\n### What the Data Shows\n- **{concentration_insight}**")
 
-            lines.append("\n#### 🚩 Qualifying Vulnerable Opportunities:")
-            if qualifying:
-                for d in qualifying[:10]:
-                    lines.append(f"- **{d['deal_name']}** ({d['customer']}) — **{d['deal_value_formatted']}** ({d.get('deal_contribution_pct', 0)}% of qualifying total | Prob: {d['probability_pct']}%, Weighted: {d['weighted_value_formatted']}, Stage: {d['stage']})")
-            else:
-                lines.append("- No open deals currently meet the high-value / low-probability risk criteria.")
+            lines.append("\n### Risks & Data Caveats")
+            lines.append("- **Low weighted-pipeline risk**: High contract values paired with low closure probability create significant forecast volatility.")
+            lines.append("- **Large-value deal dependency**: Pipeline revenue depends heavily on a small set of vulnerable negotiations.")
 
-            lines.append(f"\n#### 🛡️ Data Quality Audit:\n- {dq_note}")
+            lines.append("\n### Recommended Actions")
+            lines.append("1. **Executive sponsorship** — Assign executive sponsors to top vulnerable deals to resolve client negotiation friction.")
+            lines.append("2. **Probability review** — Conduct weekly deal reviews to re-assess probability and deal velocity.")
+
+            lines.append("\n### Bottom Line")
+            lines.append("Focusing leadership intervention on the top high-value, low-probability deals is essential to securing pipeline forecast.")
+
+            if is_dq_query:
+                lines.append(f"\n### Data Quality Report\n- {dq_note}")
+
             return "\n".join(lines)
 
-        elif intent == "customer_combined_value_analysis":
-            custs = metrics.get("top_combined_customers", [])
-            lines = ["### 🏢 Top Commercial Customer Account Rankings", ""]
-            lines.append(f"**Headline**: Top customer relationships ranked by combined Sales Pipeline + Active Work Order value.")
-            lines.append("\n#### 🏆 Key Customer Accounts:")
-            for idx, c in enumerate(custs[:5], 1):
-                lines.append(f"{idx}. **{c['customer']}**: **{c['combined_total_formatted']}** total combined value (Pipeline: {c['open_pipeline_formatted']} | Work Orders: {c['active_work_order_formatted']})")
-            lines.append(f"\n#### 🛡️ Data Quality Note:\n- {dq_note}")
-            return "\n".join(lines)
+        elif intent == "data_quality_report":
+            return f"""### Headline
+Data Quality Audit Report: Skylark's database health score stands at **{dq_score}%**.
 
-        elif intent == "cross_board_customer_analysis":
-            no_deals = metrics.get("active_work_no_active_deals", [])
-            no_work = metrics.get("open_deals_no_active_work", [])
-            
-            lines = ["### 🔄 Cross-Board Customer Intelligence", ""]
-            lines.append(f"**Headline**: Cross-board customer matching between Deals funnel and Work Order Tracker.\n")
-            lines.append(f"#### 1. Customers with Active Work Orders but NO Active Deals ({len(no_deals)} customers):")
-            for c in no_deals[:5]:
-                lines.append(f"- **{c['customer']}**: {c['active_work_orders_count']} active work orders ({c['total_order_value_formatted']}) - Sectors: {', '.join(c['sectors'])}")
+### Key Metrics
+- **Overall Data Quality Score**: {dq_score}%
+- **Total Audit Records**: {dq.get('total_records', 0)}
+- **Valid Records**: {dq.get('valid_records', 0)}
+- **Missing Values Count**: {dq.get('missing_values_count', 0)}
+- **Invalid Dates Count**: {dq.get('invalid_dates_count', 0)}
+- **Excluded Records Scope**: {dq.get('excluded_records_count', 0)}
 
-            lines.append(f"\n#### 2. Customers with Open Deals but NO Active Work Orders ({len(no_work)} customers):")
-            for c in no_work[:5]:
-                lines.append(f"- **{c['customer']}**: {c['open_deals_count']} open deals ({c['pipeline_value_formatted']})")
+### What the Data Shows
+- Data deductions: {", ".join(deductions) if deductions else "No deductions. Clean dataset."}
 
-            lines.append(f"\n#### 🛡️ Data Quality Note:\n- {dq_note}")
-            return "\n".join(lines)
+### Bottom Line
+Maintaining complete probability and deal value entries on Monday.com ensures 100% deterministic BI forecast precision.
+"""
 
         else:
-            return f"""### 🎯 Skylark BI Executive Summary
+            open_pipe = metrics.get("open_pipeline_formatted", "₹0")
+            open_cnt = metrics.get("open_deals", 0)
 
-**Headline**: Consolidated Business Intelligence view for Skylark Drones leadership.
+            dq_section = f"\n### Data Quality Report\n- {dq_note}" if is_dq_query else ""
 
-#### Key Takeaways:
-- **Sales & Pipeline**: Active deals across core sectors (Mining, Powerline, Renewables).
-- **Operations**: Work orders actively delivering drone data products.
-- **Collections & Receivables**: Invoicing and cash collection tracking.
+            return f"""### Headline
+Consolidated Skylark BI analysis showing **{open_pipe}** in active pipeline across **{open_cnt} open deals**.
 
-#### 🛡️ Data Quality Audit:
-- {dq_note}
+### Key Metrics
+- **Open Pipeline Value**: {open_pipe}
+- **Open Deals**: {open_cnt}
+
+### What the Data Shows
+- Active operations and deal funnels demonstrate steady commercial engagement across key sectors.
+
+### Risks & Data Caveats
+- **Pipeline concentration risk**: A subset of high-value deals accounts for the majority of total pipeline.
+
+### Recommended Actions
+1. **Focus on high-value closing deals** to ensure revenue targets are met this quarter.
+
+### Bottom Line
+Execution focus on key open opportunities will drive quarterly target achievement.{dq_section}
 """

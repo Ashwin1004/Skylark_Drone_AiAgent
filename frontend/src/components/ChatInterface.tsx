@@ -1,31 +1,42 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Send, Copy, Check, Info, User, Bot } from 'lucide-react';
-import { Message, ChatResponse } from '../types';
-import { ExecutiveMetricCards } from './ExecutiveMetricCards';
-import { InvoicingPriorityCards } from './InvoicingPriorityCards';
-import { LoadingPipeline } from './LoadingPipeline';
+import { 
+  Send, 
+  Bot, 
+  User, 
+  Sparkles, 
+  Copy, 
+  Check, 
+  Square,
+  Share2
+} from 'lucide-react';
+import { Message } from '../types';
 import { WelcomeScreen } from './WelcomeScreen';
+import { AIResponseCharts } from './AIResponseCharts';
+import { InvoicingPriorityCards } from './InvoicingPriorityCards';
 
-interface Props {
+interface ChatInterfaceProps {
   messages: Message[];
-  onSendMessage: (query: string) => void;
   isLoading: boolean;
-  onInspectMetadata: (metadata: ChatResponse) => void;
+  onSendMessage: (message: string) => void;
+  onStopGeneration?: () => void;
+  onInspectMetadata: (meta: any) => void;
   inputRef?: React.RefObject<HTMLTextAreaElement>;
 }
 
-export const ChatInterface: React.FC<Props> = ({
+export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   messages,
-  onSendMessage,
   isLoading,
+  onSendMessage,
+  onStopGeneration,
   onInspectMetadata,
-  inputRef
 }) => {
   const [input, setInput] = useState('');
-  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const [sharedLink, setSharedLink] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -40,6 +51,9 @@ export const ChatInterface: React.FC<Props> = ({
     if (!input.trim() || isLoading) return;
     onSendMessage(input.trim());
     setInput('');
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -49,139 +63,243 @@ export const ChatInterface: React.FC<Props> = ({
     }
   };
 
-  const handleCopyText = (id: string, text: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedId(id);
-    setTimeout(() => setCopiedId(null), 1500);
+  const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInput(e.target.value);
+    e.target.style.height = 'auto';
+    e.target.style.height = `${Math.min(e.target.scrollHeight, 160)}px`;
   };
 
+  const handleCopyMessageText = (text: string, index: number) => {
+    navigator.clipboard.writeText(text);
+    setCopiedIndex(index);
+    setTimeout(() => setCopiedIndex(null), 1500);
+  };
+
+  const handleShareChat = () => {
+    const shareUrl = `${window.location.origin}${window.location.pathname}?chat=${Date.now()}`;
+    navigator.clipboard.writeText(shareUrl);
+    setSharedLink(true);
+    setTimeout(() => setSharedLink(false), 2500);
+  };
+
+  if (messages.length === 0) {
+    return (
+      <WelcomeScreen 
+        onSelectPrompt={onSendMessage} 
+        isLoading={isLoading} 
+        inputRef={textareaRef}
+      />
+    );
+  }
+
   return (
-    <div className="flex flex-col h-full max-w-4xl mx-auto w-full px-4 py-4">
+    <div className="flex-1 flex flex-col h-full bg-[#f3eee6] overflow-hidden relative">
       
-      {/* Conversation Timeline OR Welcome Prompt Cards */}
-      <div className="flex-1 overflow-y-auto space-y-6 pb-6 pr-1 flex flex-col">
-        {messages.length === 0 ? (
-          <WelcomeScreen onSelectPrompt={onSendMessage} isLoading={isLoading} />
-        ) : (
-          messages.map((msg) => (
+      {/* Top Action Bar (Share Button) */}
+      <div className="bg-[#f3eee6]/90 backdrop-blur-xs border-b border-[#e2dcd3] px-6 py-2 flex items-center justify-between z-10">
+        <div className="text-xs sm:text-sm font-semibold text-[#4a3d37] flex items-center gap-2 font-mono">
+          <Sparkles className="w-4 h-4 text-[#8c5220]" />
+          <span>Skylark Chat Session</span>
+        </div>
+
+        <button
+          onClick={handleShareChat}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-[#e2dcd3] hover:bg-[#faf7f2] text-[#4a3d37] text-xs font-semibold transition-colors shadow-2xs"
+        >
+          {sharedLink ? (
+            <>
+              <Check className="w-3.5 h-3.5 text-[#059669]" />
+              <span className="text-[#059669]">Link Copied! ✓</span>
+            </>
+          ) : (
+            <>
+              <Share2 className="w-3.5 h-3.5 text-[#786a62]" />
+              <span>Share</span>
+            </>
+          )}
+        </button>
+      </div>
+
+      {/* Scrollable Chat Thread */}
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 max-w-4xl mx-auto w-full">
+        {messages.map((msg, index) => {
+          const isUser = msg.role === 'user';
+
+          return (
             <div
-              key={msg.id}
-              className={`flex items-start gap-3 ${
-                msg.role === 'user' ? 'justify-end' : 'justify-start'
+              key={index}
+              className={`flex items-start gap-3 text-sm sm:text-base animate-in fade-in duration-200 ${
+                isUser ? 'justify-end' : 'justify-start'
               }`}
             >
-              {msg.role === 'assistant' && (
-                <div className="h-7 w-7 rounded-lg bg-sky-950/80 border border-sky-800/60 flex items-center justify-center text-cyan-400 shrink-0 mt-1 shadow-sm">
-                  <Bot className="w-3.5 h-3.5" />
+              {/* Bot Avatar */}
+              {!isUser && (
+                <div className="w-8 h-8 rounded-xl bg-[#4a3d37] border border-[#5c4c45] flex items-center justify-center text-[#f5f2eb] shrink-0 shadow-xs mt-0.5">
+                  <Bot className="w-4 h-4 text-[#e2b897]" />
                 </div>
               )}
 
+              {/* Message Content Container */}
               <div
-                className={`max-w-2xl rounded-2xl p-4 shadow-sm border transition-all ${
-                  msg.role === 'user'
-                    ? 'bg-sky-600 text-white border-sky-500/30 rounded-tr-none text-sm'
-                    : msg.error
-                    ? 'bg-rose-950/30 border-rose-800/80 text-rose-200 rounded-tl-none'
-                    : 'bg-[#0b0f19] border-slate-800/80 text-slate-100 rounded-tl-none'
+                className={`max-w-2xl space-y-3 ${
+                  isUser
+                    ? 'bg-[#3b2e2a] text-[#f8f6f0] rounded-2xl rounded-tr-none px-4 py-3 shadow-sm text-sm sm:text-base'
+                    : 'bg-white border border-[#e2dcd3] text-[#211a17] rounded-2xl rounded-tl-none p-5 sm:p-6 shadow-2xs w-full'
                 }`}
               >
-                {/* Assistant Message Header Actions */}
-                {msg.role === 'assistant' && msg.responseMetadata && (
-                  <div className="flex items-center justify-between gap-3 mb-2 pb-2 border-b border-slate-800/60 text-xs">
-                    <span className="font-semibold text-slate-300 text-[11px] font-mono">
-                      Skylark BI
-                    </span>
-                    
-                    <div className="flex items-center gap-3">
-                      <button
-                        onClick={() => handleCopyText(msg.id, msg.content)}
-                        className="text-slate-400 hover:text-slate-200 flex items-center gap-1 transition-colors text-xs"
-                        title="Copy business response"
-                      >
-                        {copiedId === msg.id ? (
-                          <>
-                            <Check className="w-3.5 h-3.5 text-emerald-400" />
-                            <span className="text-emerald-400 font-mono">Copied ✓</span>
-                          </>
-                        ) : (
-                          <>
-                            <Copy className="w-3.5 h-3.5" />
-                            <span>Copy</span>
-                          </>
-                        )}
-                      </button>
-
-                      <button
-                        onClick={() => onInspectMetadata(msg.responseMetadata!)}
-                        className="text-slate-400 hover:text-cyan-300 font-mono flex items-center gap-1 text-xs transition-colors"
-                      >
-                        <Info className="w-3.5 h-3.5" /> View Analysis
-                      </button>
-                    </div>
+                {/* Structured Content Rendering */}
+                {isUser ? (
+                  <div className="whitespace-pre-wrap leading-relaxed text-sm sm:text-base">
+                    {msg.content}
                   </div>
-                )}
-
-                {/* Render Compact Executive Metric Cards */}
-                {msg.role === 'assistant' && msg.responseMetadata && (
-                  <ExecutiveMetricCards metadata={msg.responseMetadata} />
-                )}
-
-                {/* Render Invoicing Priorities Cards when billing analytics present */}
-                {msg.role === 'assistant' && msg.responseMetadata?.metrics?.priority_work_orders && (
-                  <InvoicingPriorityCards metadata={msg.responseMetadata} />
-                )}
-
-                {/* Response Narrative */}
-                {msg.role === 'assistant' ? (
-                  <div className="prose prose-invert prose-sm max-w-none prose-headings:font-semibold prose-headings:text-slate-100 prose-a:text-cyan-400 prose-strong:text-cyan-200 prose-code:text-cyan-300 text-xs sm:text-sm leading-relaxed">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                ) : (
+                  <div className="prose prose-slate max-w-none text-sm sm:text-base text-[#211a17] leading-relaxed">
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
+                      components={{
+                        h1: ({ node, ...props }) => (
+                          <h1 className="text-lg font-extrabold text-[#111827] mt-3 mb-2 tracking-tight border-b border-[#f0eae1] pb-1" {...props} />
+                        ),
+                        h2: ({ node, ...props }) => (
+                          <h2 className="text-base font-extrabold text-[#111827] mt-3 mb-1.5 tracking-tight" {...props} />
+                        ),
+                        h3: ({ node, ...props }) => (
+                          <h3 className="text-sm font-extrabold text-[#111827] mt-2.5 mb-1 uppercase tracking-wider font-mono" {...props} />
+                        ),
+                        strong: ({ node, ...props }) => (
+                          <strong className="font-extrabold text-[#111827]" {...props} />
+                        ),
+                        p: ({ node, ...props }) => (
+                          <p className="text-sm sm:text-base mb-2.5 leading-relaxed text-[#211a17]" {...props} />
+                        ),
+                        ul: ({ node, ...props }) => (
+                          <ul className="list-disc list-inside space-y-1.5 mb-3 text-sm sm:text-base text-[#211a17]" {...props} />
+                        ),
+                        ol: ({ node, ...props }) => (
+                          <ol className="list-decimal list-inside space-y-1.5 mb-3 text-sm sm:text-base text-[#211a17]" {...props} />
+                        ),
+                        li: ({ node, ...props }) => (
+                          <li className="leading-relaxed text-sm sm:text-base" {...props} />
+                        ),
+                        table: ({ node, ...props }) => (
+                          <div className="overflow-x-auto my-3 border border-[#e2dcd3] rounded-lg">
+                            <table className="w-full text-left text-xs sm:text-sm border-collapse" {...props} />
+                          </div>
+                        ),
+                        th: ({ node, ...props }) => (
+                          <th className="bg-[#f5f0e8] p-2.5 font-extrabold text-[#111827] border-b border-[#e2dcd3] uppercase text-xs tracking-wider" {...props} />
+                        ),
+                        td: ({ node, ...props }) => (
+                          <td className="p-2.5 border-b border-[#f0eae1] text-xs sm:text-sm text-[#211a17]" {...props} />
+                        ),
+                      }}
+                    >
                       {msg.content}
                     </ReactMarkdown>
                   </div>
-                ) : (
-                  <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                )}
+
+                {/* AI Assistant Special Enriched Analytics Components */}
+                {!isUser && msg.responseMetadata && (
+                  <div className="space-y-4 pt-2 border-t border-[#f0eae1]">
+                    
+                    {/* Recharts Data Visualization */}
+                    <AIResponseCharts metadata={msg.responseMetadata} />
+
+                    {/* Invoicing Priority Highlight Cards */}
+                    <InvoicingPriorityCards metadata={msg.responseMetadata} />
+
+                    {/* Message Action Toolbar */}
+                    <div className="flex items-center justify-start pt-2 text-xs text-[#786a62] font-mono border-t border-[#f0eae1]">
+                      <button
+                        onClick={() => handleCopyMessageText(msg.content, index)}
+                        className="flex items-center gap-1 px-2 py-1 rounded bg-[#f5f0e8] hover:bg-[#e8dfd3] text-[#4a3d37] transition-colors"
+                      >
+                        {copiedIndex === index ? (
+                          <>
+                            <Check className="w-3 h-3 text-[#059669]" />
+                            <span className="text-[#059669]">Copied ✓</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3 h-3 text-[#786a62]" />
+                            <span>Copy Message</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+
+                  </div>
                 )}
               </div>
 
-              {msg.role === 'user' && (
-                <div className="h-7 w-7 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-300 shrink-0 mt-1 shadow-sm">
-                  <User className="w-3.5 h-3.5" />
+              {/* User Avatar */}
+              {isUser && (
+                <div className="w-8 h-8 rounded-xl bg-[#e8e1d5] border border-[#dcd4c8] flex items-center justify-center text-[#4a3d37] shrink-0 shadow-xs mt-0.5 font-bold text-xs">
+                  <User className="w-4 h-4 text-[#4a3d37]" />
                 </div>
               )}
             </div>
-          ))
-        )}
+          );
+        })}
 
-        {/* Subtle ChatGPT Loading Indicator */}
-        {isLoading && <LoadingPipeline />}
+        {/* Loading Thinking Indicator */}
+        {isLoading && (
+          <div className="flex items-center gap-3 text-xs text-[#786a62] font-mono animate-pulse">
+            <div className="w-8 h-8 rounded-xl bg-[#4a3d37] flex items-center justify-center text-[#f5f2eb]">
+              <Sparkles className="w-4 h-4 text-[#e2b897] animate-spin" />
+            </div>
+          </div>
+        )}
 
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Sticky Bottom ChatGPT Composer */}
-      <form onSubmit={handleSubmit} className="relative mt-2">
-        <textarea
-          ref={inputRef}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Ask anything about your business..."
-          rows={2}
-          disabled={isLoading}
-          className="w-full bg-[#0b0f19] text-slate-100 placeholder-slate-500 border border-slate-800/80 focus:border-cyan-500/80 rounded-xl px-4 py-3 pr-12 text-sm focus:outline-none focus:ring-1 focus:ring-cyan-500/20 resize-none shadow-lg transition-all"
-        />
-        <button
-          type="submit"
-          disabled={!input.trim() || isLoading}
-          className="absolute right-3 top-3 p-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white disabled:opacity-30 transition-all shadow-sm"
-          title="Send query"
-        >
-          <Send className="w-3.5 h-3.5" />
-        </button>
-        <div className="text-[10px] text-slate-600 mt-1 text-center font-mono">
-          Enter to send · Shift + Enter for new line
-        </div>
-      </form>
+      {/* Sticky Bottom Input Bar */}
+      <div className="p-4 bg-[#f3eee6] border-t border-[#e2dcd3] sticky bottom-0">
+        <form onSubmit={handleSubmit} className="max-w-4xl mx-auto relative">
+          <div className="relative bg-white text-[#211a17] border border-[#dcd4c8] focus-within:border-[#8c7365] focus-within:ring-2 focus-within:ring-[#e8dfd3] rounded-2xl p-2.5 shadow-md transition-all">
+            <textarea
+              ref={textareaRef}
+              value={input}
+              onChange={handleTextareaChange}
+              onKeyDown={handleKeyDown}
+              placeholder="Ask anything about your business..."
+              rows={1}
+              disabled={isLoading}
+              className="w-full bg-transparent text-[#211a17] placeholder-[#a3978c] px-3 py-1.5 text-sm sm:text-base focus:outline-none resize-none max-h-40"
+            />
+            <div className="flex items-center justify-between pt-2 px-2 border-t border-[#f0eae1]">
+              <span className="text-[11px] font-mono text-[#8c7f76]">
+                Shift + Enter for new line
+              </span>
+
+              {isLoading ? (
+                /* Stop Generation Button */
+                <button
+                  type="button"
+                  onClick={onStopGeneration}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-800 hover:bg-rose-900 text-white font-semibold text-xs transition-all shadow-sm animate-in fade-in duration-150"
+                >
+                  <span>Stop</span>
+                  <Square className="w-3.5 h-3.5 fill-current" />
+                </button>
+              ) : (
+                /* Send Button */
+                <button
+                  type="submit"
+                  disabled={!input.trim() || isLoading}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#4a3d37] hover:bg-[#3b2e2a] text-[#f5f2eb] font-semibold text-xs disabled:opacity-30 transition-all shadow-sm"
+                >
+                  <span>Send</span>
+                  <Send className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          </div>
+        </form>
+      </div>
+
     </div>
   );
 };

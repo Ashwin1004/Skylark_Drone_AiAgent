@@ -4,7 +4,8 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 export async function sendChatMessage(
   question: string,
-  history: Message[] = []
+  history: Message[] = [],
+  signal?: AbortSignal
 ): Promise<ChatResponse> {
   const contextHistory = history
     .slice(-6)
@@ -28,6 +29,7 @@ export async function sendChatMessage(
       headers: {
         'Content-Type': 'application/json',
       },
+      signal,
       body: JSON.stringify({
         question: question.trim(),
         context_history: contextHistory
@@ -55,7 +57,7 @@ export async function sendChatMessage(
     return await response.json();
   } catch (error: any) {
     if (error.name === 'AbortError') {
-      throw new Error('Request timed out. Please try again.');
+      throw new Error('Generation stopped by user.');
     }
     const cleanMsg = typeof error.message === 'string' && error.message.trim()
       ? error.message
