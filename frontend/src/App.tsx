@@ -41,7 +41,17 @@ export const App: React.FC = () => {
   // Workspace Views: 'ask' (default AI chat) | 'home' | 'pipeline' | 'sectors' | 'leadership'
   const [activeTab, setActiveTab] = useState<string>('ask');
 
-  const [savedConversations, setSavedConversations] = useState<SavedConversation[]>([]);
+  // Synchronously initialize saved conversations from localStorage to prevent wiping on reload
+  const [savedConversations, setSavedConversations] = useState<SavedConversation[]>(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch (e) {
+      console.error('Failed to load saved conversations from localStorage', e);
+      return [];
+    }
+  });
+
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
 
   // Command Palette & Modals State
@@ -62,18 +72,6 @@ export const App: React.FC = () => {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
-
-  // Load saved conversations on mount
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        setSavedConversations(JSON.parse(raw));
-      }
-    } catch (e) {
-      console.error('Failed to load saved conversations', e);
-    }
   }, []);
 
   // Poll backend health
@@ -127,7 +125,7 @@ export const App: React.FC = () => {
     }
   }, []);
 
-  // Persist conversations helper
+  // Persist conversations helper with functional update & safety fallback
   const persistConversations = (list: SavedConversation[]) => {
     setSavedConversations(list);
     try {
@@ -137,26 +135,45 @@ export const App: React.FC = () => {
     }
   };
 
-  // Save current conversation session
+  // Save current conversation session safely without losing existing conversations
   const saveConversationSession = (newMessages: Message[], convId: string | null) => {
     if (newMessages.length === 0) return;
 
     const id = convId || Date.now().toString();
-    const existing = savedConversations.find(c => c.id === id);
-    const firstUserMsg = newMessages.find(m => m.role === 'user');
-    const title = existing ? existing.title : (firstUserMsg ? generateTitle(firstUserMsg.content) : 'BI Analysis');
 
-    const updatedItem: SavedConversation = {
-      id,
-      title,
-      pinned: existing?.pinned || false,
-      timestamp: new Date().toISOString(),
-      messages: newMessages,
-    };
+    setSavedConversations(prevList => {
+      let currentList = prevList;
+      if (currentList.length === 0) {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (raw) currentList = JSON.parse(raw);
+        } catch (e) {}
+      }
 
-    const filtered = savedConversations.filter(c => c.id !== id);
-    const list = [updatedItem, ...filtered].slice(0, 20);
-    persistConversations(list);
+      const existing = currentList.find(c => c.id === id);
+      const firstUserMsg = newMessages.find(m => m.role === 'user');
+      const title = existing ? existing.title : (firstUserMsg ? generateTitle(firstUserMsg.content) : 'BI Analysis');
+
+      const updatedItem: SavedConversation = {
+        id,
+        title,
+        pinned: existing?.pinned || false,
+        archived: existing?.archived || false,
+        timestamp: new Date().toISOString(),
+        messages: newMessages,
+      };
+
+      const filtered = currentList.filter(c => c.id !== id);
+      const updatedList = [updatedItem, ...filtered].slice(0, 20);
+
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedList));
+      } catch (e) {
+        console.error('Failed to persist conversations', e);
+      }
+
+      return updatedList;
+    });
 
     if (!activeConversationId) {
       setActiveConversationId(id);
@@ -350,7 +367,7 @@ export const App: React.FC = () => {
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         health={health}
-        onSelectPrompt={handleSendMessage}
+        onSelectPrompt={(prompt) => handleSendMessage(prompt)}
         onNewChat={handleNewChat}
         onNavigateHome={handleNavigateHome}
         savedConversations={savedConversations}
@@ -385,7 +402,7 @@ export const App: React.FC = () => {
             messages={messages}
             isLoading={isLoading}
             loadingStatusText={loadingStatusText}
-            onSendMessage={handleSendMessage}
+            onSendMessage={(query: string) => handleSendMessage(query)}
             onStopGeneration={handleStopGeneration}
             onInspectMetadata={handleInspectMetadata}
             inputRef={chatInputRef}
