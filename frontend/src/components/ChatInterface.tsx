@@ -141,7 +141,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
 
               {/* Message Content Container */}
               <div
-                className={`max-w-2xl space-y-3 ${
+                className={`max-w-3xl sm:max-w-4xl space-y-3 ${
                   isUser
                     ? 'bg-[#3b2e2a] text-[#f8f6f0] rounded-2xl rounded-tr-none px-4 py-3 shadow-sm text-sm sm:text-base'
                     : 'bg-white border border-[#e2dcd3] text-[#211a17] rounded-2xl rounded-tl-none p-5 sm:p-6 shadow-2xs w-full'
@@ -194,7 +194,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                         ),
                       }}
                     >
-                      {msg.content}
+                      {msg.content.replace(/\*\*/g, '')}
                     </ReactMarkdown>
                   </div>
                 )}

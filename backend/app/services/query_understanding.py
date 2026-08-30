@@ -23,7 +23,7 @@ BUSINESS_KEYWORDS = [
     "opportunity", "opportunities", "closure", "probability",
     "leadership", "executive", "founder", "brief", "update",
     "risk", "risks", "vulnerable", "owner", "owners", "kam", "bd", "customer", "customers", "client", "clients",
-    "skylark", "monday", "board", "boards", "quality", "health", "issues", "performance", "total", "value"
+    "skylark", "monday", "board", "boards", "quality", "health", "issues", "performance", "total", "value", "compare", "comparison"
 ]
 
 GREETING_PATTERNS = [
@@ -41,6 +41,7 @@ THANKS_PATTERNS = [
 
 CASUAL_PATTERNS = [
     r"^\s*how\s+(are\s+you|is\s+it\s+going|s\s+it\s+going|are\s+things|s\s+going)\s*\??\s*$",
+    r".*\bhow\s+(are\s+you|is\s+it\s+going|are\s+things)\b.*",
     r"^\s*what\s*(s|\s+is)?\s+up\s*\??\s*$",
     r"^\s*(nice|awesome|cool|great|ok|okay)\s*$"
 ]
@@ -156,8 +157,10 @@ class QueryUnderstandingService:
                 if last_intent:
                     break
 
-        # Handle Short Follow-up (e.g., "What about Mining?")
-        if len(q.split()) <= 4 and ("what about" in q or "how about" in q or target_sector):
+        # Handle Short Follow-up (e.g., "What about Mining?" or "What about collections?")
+        if len(q.split()) <= 5 and ("what about" in q or "how about" in q or target_sector):
+            if "collections" in q or "billing" in q:
+                return "billing_analysis", params
             if last_intent and not any(k in q for k in ["leadership", "active work", "cross", "receivables", "pipeline"]):
                 params["sector"] = target_sector or last_sector
                 return last_intent, params
@@ -166,10 +169,10 @@ class QueryUnderstandingService:
         if any(k in q for k in ["leadership", "executive", "founder", "update for leadership", "5 most important things"]):
             return "leadership_update", params
 
-        if any(k in q for k in ["cross", "active work", "no active deal", "no active work", "perspective", "without deals", "without work"]):
+        if any(k in q for k in ["compare", "comparison", "cross", "active work", "no active deal", "no active work", "perspective", "without deals", "without work"]):
             return "cross_board_customer_analysis", params
 
-        if any(k in q for k in ["risk", "vulnerable", "low probability", "high deal value but low", "financial risk"]):
+        if any(k in q for k in ["risk", "risks", "vulnerable", "high-value deal", "high-value deals", "low probability", "high deal value but low", "financial risk"]):
             return "deal_risk_analysis", params
 
         if any(k in q for k in ["owner", "owners", "managing", "kam", "bd personnel"]):
@@ -187,7 +190,7 @@ class QueryUnderstandingService:
         if any(k in q for k in ["quality", "data health", "missing", "data report"]):
             return "data_quality_report", params
 
-        if any(k in q for k in ["billing", "invoice", "invoicing", "pending billing", "unbilled"]):
+        if any(k in q for k in ["billing", "invoice", "invoicing", "pending billing", "unbilled", "collection", "collections"]):
             return "billing_analysis", params
 
         if any(k in q for k in ["work order", "work orders", "active work orders", "operations"]):
@@ -197,3 +200,53 @@ class QueryUnderstandingService:
             return "pipeline_overview", params
 
         return "pipeline_overview", params
+
+    @classmethod
+    def detect_all_intents_and_params(
+        cls,
+        question: str,
+        context_history: Optional[List[Dict[str, str]]] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Detects multiple business intents from a single user message.
+        Splits compound/multi-sentence queries and evaluates each clause.
+        Returns a list of intent dictionaries: [{"intent": str, "params": dict, "clause": str}]
+        """
+        q_raw = question.strip()
+        
+        # Split by question marks, periods, exclamation marks, or conjunction connectors (also, and how, plus, furthermore)
+        clauses = [c.strip() for c in re.split(r'[\?!\.]|\b(?:also|plus|furthermore|and which|and how)\b', q_raw, flags=re.IGNORECASE) if c.strip()]
+        
+        # If single clause, classify normally
+        if len(clauses) <= 1:
+            intent, params = cls.classify_intent_and_params(q_raw, context_history)
+            return [{"intent": intent, "params": params, "clause": q_raw}]
+
+        intents_list = []
+        seen_keys = set()
+        has_business = False
+
+        for clause in clauses:
+            if len(clause) < 3:
+                continue
+            intent, params = cls.classify_intent_and_params(clause, context_history)
+            
+            sector = params.get("sector", "")
+            dedup_key = f"{intent}:{sector}"
+
+            if intent not in ("out_of_scope", "greeting", "casual_conversation", "farewell"):
+                has_business = True
+
+            if dedup_key not in seen_keys:
+                seen_keys.add(dedup_key)
+                intents_list.append({"intent": intent, "params": params, "clause": clause})
+
+        # If business intents are present, filter out casual/out_of_scope noise clauses
+        if has_business:
+            business_intents = [item for item in intents_list if item["intent"] not in ("out_of_scope", "greeting", "casual_conversation", "farewell")]
+            if business_intents:
+                return business_intents
+
+        # If no business intents detected from clauses, classify whole prompt
+        intent, params = cls.classify_intent_and_params(q_raw, context_history)
+        return [{"intent": intent, "params": params, "clause": q_raw}]

@@ -38,17 +38,54 @@ class AIService:
         service = self.groq_service
         if service:
             try:
-                return await service.generate_executive_explanation(
+                res = await service.generate_executive_explanation(
                     question=question,
                     intent=intent,
                     metrics=metrics,
                     data_quality=data_quality,
                     explainability=explainability
                 )
+                return res.replace("**", "")
             except Exception as e:
                 logger.warning(f"Groq API service call failed ({e}), falling back to deterministic template generator.")
 
-        return self._generate_fallback_template(intent, question, metrics, data_quality, explainability)
+        return self._generate_fallback_template(intent, question, metrics, data_quality, explainability).replace("**", "")
+
+    async def generate_multi_intent_explanation(
+        self,
+        question: str,
+        multi_payload: Dict[str, Any],
+        data_quality: Dict[str, Any]
+    ) -> str:
+        """
+        Generates a combined executive explanation covering all detected business intents.
+        """
+        service = self.groq_service
+        if service:
+            try:
+                res = await service.generate_multi_intent_explanation(
+                    question=question,
+                    multi_payload=multi_payload,
+                    data_quality=data_quality
+                )
+                return res.replace("**", "")
+            except Exception as e:
+                logger.warning(f"Groq API multi-intent call failed ({e}), using fallback multi-intent template.")
+
+        sections = []
+        sections.append("### Executive Summary\nMulti-intent analysis covering all requested business areas based on live Monday.com analytics.")
+        
+        for item in multi_payload.get("analyses", []):
+            intent_i = item.get("intent", "")
+            clause_i = item.get("clause", "")
+            metrics_i = item.get("metrics", {})
+            title = clause_i.strip().capitalize() if clause_i else intent_i.replace("_", " ").title()
+            
+            sub_res = self._generate_fallback_template(intent_i, clause_i, metrics_i, data_quality, {})
+            sections.append(f"\n### {title}\n{sub_res}")
+
+        sections.append("\n### Overall Priority\n1. Accelerate high-value deal conversions across priority sectors.\n2. Resolve milestone billing gaps to optimize cash flow.")
+        return "\n\n".join(sections).replace("**", "")
 
     def _generate_fallback_template(
         self,

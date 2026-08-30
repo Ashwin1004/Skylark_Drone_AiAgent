@@ -1,6 +1,7 @@
 import pytest
 from app.services.query_understanding import QueryUnderstandingService
 from app.services.agent_orchestrator import AgentOrchestrator
+from app.services.groq_service import is_response_complete
 
 def test_intent_classification_business_queries():
     intent, params = QueryUnderstandingService.classify_intent_and_params("How is our pipeline looking this quarter?")
@@ -16,6 +17,12 @@ def test_intent_classification_business_queries():
 
     intent, params = QueryUnderstandingService.classify_intent_and_params("Which customers have active work orders but no active deals?")
     assert intent == "cross_board_customer_analysis"
+
+def test_response_completeness_validator():
+    assert is_response_complete("Here is a complete sentence.") is True
+    assert is_response_complete("Incomplete sentence ending with a word") is False
+    assert is_response_complete("Header ending with colon:\n- Item 1\n- Item 2.") is True
+    assert is_response_complete("Header ending with colon:\n- ") is False
 
 def test_six_specific_query_scenarios():
     # 1. "How is the Energy sector performing?"
@@ -41,6 +48,52 @@ def test_six_specific_query_scenarios():
     # 6. "Show me the data quality issues."
     intent6, _ = QueryUnderstandingService.classify_intent_and_params("Show me the data quality issues.")
     assert intent6 == "data_quality_report"
+
+def test_nine_required_cases():
+    # A. "How is our pipeline looking?"
+    intents_a = QueryUnderstandingService.detect_all_intents_and_params("How is our pipeline looking?")
+    assert len(intents_a) == 1
+    assert intents_a[0]["intent"] == "pipeline_overview"
+
+    # B. "How is the Energy sector performing?"
+    intents_b = QueryUnderstandingService.detect_all_intents_and_params("How is the Energy sector performing?")
+    assert len(intents_b) == 1
+    assert intents_b[0]["intent"] == "sector_analysis"
+    assert intents_b[0]["params"].get("sector") == "Powerline"
+
+    # C. "What are our biggest revenue and collection risks?"
+    intents_c = QueryUnderstandingService.detect_all_intents_and_params("What are our biggest revenue and collection risks?")
+    assert intents_c[0]["intent"] in ("deal_risk_analysis", "billing_analysis")
+
+    # D. "What are our biggest revenue and collection risks? How is the Energy sector performing?"
+    intents_d = QueryUnderstandingService.detect_all_intents_and_params("What are our biggest revenue and collection risks? How is the Energy sector performing?")
+    assert len(intents_d) >= 2
+    detected_intent_names_d = [item["intent"] for item in intents_d]
+    assert "sector_analysis" in detected_intent_names_d
+    assert any(i in detected_intent_names_d for i in ["deal_risk_analysis", "billing_analysis"])
+
+    # E. "Compare our work orders and pipeline."
+    intents_e = QueryUnderstandingService.detect_all_intents_and_params("Compare our work orders and pipeline.")
+    assert intents_e[0]["intent"] in ("cross_board_customer_analysis", "work_order_analysis", "pipeline_overview")
+
+    # F. "Prepare a leadership update."
+    intents_f = QueryUnderstandingService.detect_all_intents_and_params("Prepare a leadership update.")
+    assert intents_f[0]["intent"] == "leadership_update"
+
+    # G. "Hi, how are you?"
+    intents_g = QueryUnderstandingService.detect_all_intents_and_params("Hi, how are you?")
+    assert intents_g[0]["intent"] in ("greeting", "casual_conversation")
+
+    # H. "What's the weather today?"
+    intents_h = QueryUnderstandingService.detect_all_intents_and_params("What's the weather today?")
+    assert intents_h[0]["intent"] == "out_of_scope"
+
+    # I. "How is Energy performing and which high-value deals should we focus on?"
+    intents_i = QueryUnderstandingService.detect_all_intents_and_params("How is Energy performing and which high-value deals should we focus on?")
+    assert len(intents_i) >= 2
+    detected_intent_names_i = [item["intent"] for item in intents_i]
+    assert "sector_analysis" in detected_intent_names_i
+    assert any(i in detected_intent_names_i for i in ["deal_risk_analysis", "opportunity_analysis"])
 
 def test_intent_classification_conversational_and_out_of_scope():
     # Greetings

@@ -31,85 +31,84 @@ class AgentOrchestrator:
         context_history: Optional[List[Dict[str, str]]] = None
     ) -> ChatResponse:
         """
-        Main orchestration loop executing Intent -> Data Fetch -> Normalization -> Analytics -> AI Explanation.
-        Classifies incoming intent BEFORE any Monday.com API calls or analytics execution.
+        Main orchestration loop supporting single-intent and multi-intent queries.
+        Classifies incoming intents BEFORE any Monday.com API calls or analytics execution.
         """
         logger.info(f"Processing user question: '{question}'")
 
-        # 1. Intent Classification & Parameter Extraction BEFORE any API calls
-        intent, params = QueryUnderstandingService.classify_intent_and_params(question, context_history)
-        target_sector = params.get("sector")
-        timeframe_str = params.get("timeframe")
+        # 1. Detect all intents & parameters BEFORE any API calls
+        detected_intents = QueryUnderstandingService.detect_all_intents_and_params(question, context_history)
+        primary_item = detected_intents[0] if detected_intents else {"intent": "pipeline_overview", "params": {}}
+        primary_intent = primary_item["intent"]
+        primary_params = primary_item["params"]
 
-        # 1a. GREETING
-        if intent == "greeting":
-            logger.info("Matched GREETING intent. Returning casual greeting without calling Monday.com API.")
-            return ChatResponse(
-                answer="Hi! 👋 I'm Skylark Agent. What would you like to know about the business?",
-                intent="greeting",
-                data_sources=[],
-                metrics={},
-                data_quality=DataQualityReport(score=100.0, total_records=0, valid_records=0, deductions=[]),
-                explainability=ExplainabilityMetadata(
-                    data_sources=[], calculation_method="Conversational greeting response.", timeframe_resolved="N/A"
-                ),
-                suggested_followups=SUGGESTED_QUESTIONS[:4]
-            )
+        # If single non-business intent, handle conversational responses immediately without calling Monday.com API
+        if len(detected_intents) == 1 and primary_intent in ("greeting", "casual_conversation", "farewell", "out_of_scope", "ambiguous_query"):
+            
+            if primary_intent == "greeting":
+                logger.info("Matched GREETING intent. Returning casual greeting without calling Monday.com API.")
+                return ChatResponse(
+                    answer="Hi! 👋 I'm Skylark Agent. What would you like to know about the business?",
+                    intent="greeting",
+                    data_sources=[],
+                    metrics={},
+                    data_quality=DataQualityReport(score=100.0, total_records=0, valid_records=0, deductions=[]),
+                    explainability=ExplainabilityMetadata(
+                        data_sources=[], calculation_method="Conversational greeting response.", timeframe_resolved="N/A"
+                    ),
+                    suggested_followups=SUGGESTED_QUESTIONS[:4]
+                )
 
-        # 1b. CASUAL CONVERSATION
-        if intent == "casual_conversation":
-            logger.info("Matched CASUAL_CONVERSATION intent. Returning casual response without calling Monday.com API.")
-            casual_subtype = params.get("casual_subtype")
-            if casual_subtype == "thanks":
-                answer_text = "You're welcome! Let me know if you'd like to explore any business insights."
-            else:
-                answer_text = "I'm doing great! I'm ready to help you analyze Skylark's business. Ask me about pipeline, deals, work orders, revenue, sectors, risks, or leadership insights."
+            if primary_intent == "casual_conversation":
+                logger.info("Matched CASUAL_CONVERSATION intent. Returning casual response without calling Monday.com API.")
+                casual_subtype = primary_params.get("casual_subtype")
+                if casual_subtype == "thanks":
+                    answer_text = "You're welcome! Let me know if you'd like to explore any business insights."
+                else:
+                    answer_text = "I'm doing great! I'm ready to help you analyze Skylark's business. Ask me about pipeline, deals, work orders, revenue, sectors, risks, or leadership insights."
 
-            return ChatResponse(
-                answer=answer_text,
-                intent="casual_conversation",
-                data_sources=[],
-                metrics={},
-                data_quality=DataQualityReport(score=100.0, total_records=0, valid_records=0, deductions=[]),
-                explainability=ExplainabilityMetadata(
-                    data_sources=[], calculation_method="Conversational response.", timeframe_resolved="N/A"
-                ),
-                suggested_followups=SUGGESTED_QUESTIONS[:4]
-            )
+                return ChatResponse(
+                    answer=answer_text,
+                    intent="casual_conversation",
+                    data_sources=[],
+                    metrics={},
+                    data_quality=DataQualityReport(score=100.0, total_records=0, valid_records=0, deductions=[]),
+                    explainability=ExplainabilityMetadata(
+                        data_sources=[], calculation_method="Conversational response.", timeframe_resolved="N/A"
+                    ),
+                    suggested_followups=SUGGESTED_QUESTIONS[:4]
+                )
 
-        # 1c. FAREWELL
-        if intent == "farewell":
-            logger.info("Matched FAREWELL intent. Returning farewell response without calling Monday.com API.")
-            return ChatResponse(
-                answer="Goodbye! 👋 Come back anytime if you need help analyzing Skylark's business.",
-                intent="farewell",
-                data_sources=[],
-                metrics={},
-                data_quality=DataQualityReport(score=100.0, total_records=0, valid_records=0, deductions=[]),
-                explainability=ExplainabilityMetadata(
-                    data_sources=[], calculation_method="Conversational farewell response.", timeframe_resolved="N/A"
-                ),
-                suggested_followups=[]
-            )
+            if primary_intent == "farewell":
+                logger.info("Matched FAREWELL intent. Returning farewell response without calling Monday.com API.")
+                return ChatResponse(
+                    answer="Goodbye! 👋 Come back anytime if you need help analyzing Skylark's business.",
+                    intent="farewell",
+                    data_sources=[],
+                    metrics={},
+                    data_quality=DataQualityReport(score=100.0, total_records=0, valid_records=0, deductions=[]),
+                    explainability=ExplainabilityMetadata(
+                        data_sources=[], calculation_method="Conversational farewell response.", timeframe_resolved="N/A"
+                    ),
+                    suggested_followups=[]
+                )
 
-        # 1d. OUT OF SCOPE
-        if intent == "out_of_scope":
-            logger.info("Matched OUT_OF_SCOPE intent. Returning scope boundary response without calling Monday.com API.")
-            return ChatResponse(
-                answer="That's outside my business intelligence scope. I can help with Skylark's pipeline, deals, work orders, revenue, sectors, risks, and leadership insights.",
-                intent="out_of_scope",
-                data_sources=[],
-                metrics={},
-                data_quality=DataQualityReport(score=100.0, total_records=0, valid_records=0, deductions=[]),
-                explainability=ExplainabilityMetadata(
-                    data_sources=[], calculation_method="Enforced business intelligence boundary.", timeframe_resolved="N/A"
-                ),
-                suggested_followups=SUGGESTED_QUESTIONS[:4]
-            )
+            if primary_intent == "out_of_scope":
+                logger.info("Matched OUT_OF_SCOPE intent. Returning scope boundary response without calling Monday.com API.")
+                return ChatResponse(
+                    answer="That's outside my business intelligence scope. I can help with Skylark's pipeline, deals, work orders, revenue, sectors, risks, and leadership insights.",
+                    intent="out_of_scope",
+                    data_sources=[],
+                    metrics={},
+                    data_quality=DataQualityReport(score=100.0, total_records=0, valid_records=0, deductions=[]),
+                    explainability=ExplainabilityMetadata(
+                        data_sources=[], calculation_method="Enforced business intelligence boundary.", timeframe_resolved="N/A"
+                    ),
+                    suggested_followups=SUGGESTED_QUESTIONS[:4]
+                )
 
-        # 1e. Ambiguous Queries
-        if intent == "ambiguous_query":
-            clarification_answer = """### 🤔 Query Clarification Needed
+            if primary_intent == "ambiguous_query":
+                clarification_answer = """### 🤔 Query Clarification Needed
 
 To provide an exact deterministic business analysis, please specify which area you would like to inspect:
 
@@ -119,29 +118,23 @@ To provide an exact deterministic business analysis, please specify which area y
 4. **Billing & Cash Collections**: *"What's currently pending billing?"*
 5. **Executive Summary**: *"Prepare a leadership brief"*
 """
-            return ChatResponse(
-                answer=clarification_answer,
-                intent="ambiguous_query",
-                data_sources=["Monday.com API"],
-                metrics={},
-                data_quality=DataQualityReport(
-                    score=100.0, total_records=0, valid_records=0, deductions=[]
-                ),
-                explainability=ExplainabilityMetadata(
+                return ChatResponse(
+                    answer=clarification_answer,
+                    intent="ambiguous_query",
                     data_sources=["Monday.com API"],
-                    calculation_method="Prompted user for intent clarification.",
-                    timeframe_resolved="N/A"
-                ),
-                suggested_followups=SUGGESTED_QUESTIONS[:4]
-            )
+                    metrics={},
+                    data_quality=DataQualityReport(score=100.0, total_records=0, valid_records=0, deductions=[]),
+                    explainability=ExplainabilityMetadata(
+                        data_sources=["Monday.com API"],
+                        calculation_method="Prompted user for intent clarification.",
+                        timeframe_resolved="N/A"
+                    ),
+                    suggested_followups=SUGGESTED_QUESTIONS[:4]
+                )
 
-        # BUSINESS QUERY INTENTS -> Execute dynamic Monday.com API calls
-        logger.info(f"Executing Business Query pipeline for intent '{intent}'...")
+        # 2. BUSINESS QUERY EXECUTION -> Fetch Monday.com API data once
+        logger.info(f"Executing Business Query pipeline for {len(detected_intents)} detected intent(s)...")
 
-        # Resolve timeframe dates
-        start_date, end_date, timeframe_label = resolve_relative_timeframe(timeframe_str)
-
-        # 2. Fetch fresh dynamic data from Monday.com GraphQL API
         raw_deals = await self.monday_service.get_deals()
         raw_work_orders = await self.monday_service.get_work_orders()
 
@@ -149,10 +142,9 @@ To provide an exact deterministic business analysis, please specify which area y
         df_deals, deals_dq = DataNormalizer.normalize_deals(raw_deals)
         df_wo, wo_dq = DataNormalizer.normalize_work_orders(raw_work_orders)
 
-        # Aggregate Data Quality Report
         avg_score = round((deals_dq.score + wo_dq.score) / 2.0, 1)
         comb_deductions = deals_dq.deductions + wo_dq.deductions
-        
+
         dq_report = DataQualityReport(
             score=avg_score,
             total_records=deals_dq.total_records + wo_dq.total_records,
@@ -164,104 +156,125 @@ To provide an exact deterministic business analysis, please specify which area y
             deductions=comb_deductions
         )
 
-        # 4. Execute Deterministic Analytics Tool based on Intent
-        metrics: Dict[str, Any] = {}
-        data_sources = []
-        calc_method = ""
-        assumptions = []
+        # Function to execute single intent analytics
+        def _execute_intent_analytics(intent_str: str, p_dict: Dict[str, Any]):
+            target_sec = p_dict.get("sector")
+            timeframe_val = p_dict.get("timeframe")
+            s_date, e_date, tf_label = resolve_relative_timeframe(timeframe_val)
 
-        if intent == "pipeline_overview":
-            data_sources = ["Monday.com Deals Board"]
-            metrics = AnalyticsEngine.pipeline_overview(df_deals, start_date, end_date)
-            calc_method = f"Filtered open deals by {timeframe_label}, calculated sums, averages, and stage distributions."
-            assumptions.append("Deals with missing closure probability were assigned a default 50% probability.")
+            if intent_str == "pipeline_overview":
+                return AnalyticsEngine.pipeline_overview(df_deals, s_date, e_date), ["Monday.com Deals Board"], f"Filtered open deals by {tf_label}.", tf_label
+            elif intent_str == "sector_analysis":
+                return AnalyticsEngine.sector_analysis(df_deals, df_wo, target_sec), ["Monday.com Deals Board", "Monday.com Work Orders Board"], f"Grouped deals and work orders by Sector (Filter: {target_sec or 'All'}).", tf_label
+            elif intent_str == "opportunity_analysis":
+                return AnalyticsEngine.opportunity_analysis(df_deals, top_n=5), ["Monday.com Deals Board"], "Ranked open deals by score = deal value × closure probability.", tf_label
+            elif intent_str in ("billing_analysis", "collection_analysis"):
+                return AnalyticsEngine.get_billing_analytics(df_wo), ["Monday.com Work Orders Board"], "Calculated unbilled amounts and ranked invoicing priorities.", tf_label
+            elif intent_str == "work_order_analysis":
+                return AnalyticsEngine.work_order_analysis(df_wo), ["Monday.com Work Orders Board"], "Calculated operational work order metrics.", tf_label
+            elif intent_str == "owner_analytics":
+                return AnalyticsEngine.owner_analytics(df_deals), ["Monday.com Deals Board"], "Aggregated pipeline value by owner.", tf_label
+            elif intent_str == "deal_risk_analysis":
+                c_prob = p_dict.get("low_probability_threshold")
+                return AnalyticsEngine.deal_risk_analysis(df_deals, low_prob_threshold=c_prob), ["Monday.com Deals Board"], "Evaluated high deal value and low probability deals.", tf_label
+            elif intent_str == "customer_combined_value_analysis":
+                return AnalyticsEngine.customer_combined_value_analysis(df_deals, df_wo), ["Monday.com Deals Board", "Monday.com Work Orders Board"], "Joined deals and work orders by customer.", tf_label
+            elif intent_str == "cross_board_customer_analysis":
+                return AnalyticsEngine.cross_board_customer_analysis(df_deals, df_wo), ["Monday.com Deals Board", "Monday.com Work Orders Board"], "Cross-board matching between deals and work orders.", tf_label
+            elif intent_str == "leadership_update":
+                return LeadershipService.generate_leadership_summary(df_deals, df_wo, deals_dq, wo_dq), ["Monday.com Deals Board", "Monday.com Work Orders Board"], "Consolidated leadership summary.", tf_label
+            elif intent_str == "data_quality_report":
+                return {"deals_data_quality": deals_dq.model_dump(), "work_orders_data_quality": wo_dq.model_dump()}, ["Monday.com Deals Board", "Monday.com Work Orders Board"], "Data quality audit report.", tf_label
+            else:
+                return AnalyticsEngine.pipeline_overview(df_deals), ["Monday.com Deals Board"], "Pipeline overview analysis.", tf_label
 
-        elif intent == "sector_analysis":
-            data_sources = ["Monday.com Deals Board", "Monday.com Work Orders Board"]
-            metrics = AnalyticsEngine.sector_analysis(df_deals, df_wo, target_sector)
-            calc_method = f"Grouped deals and work orders by Sector (Filter: {target_sector or 'All Sectors'})."
+        # 4. SINGLE INTENT EXECUTION
+        if len(detected_intents) == 1:
+            intent = primary_intent
+            metrics, data_sources, calc_method, tf_label = _execute_intent_analytics(intent, primary_params)
 
-        elif intent == "opportunity_analysis":
-            data_sources = ["Monday.com Deals Board"]
-            metrics = AnalyticsEngine.opportunity_analysis(df_deals, top_n=5)
-            calc_method = "Ranked open deals deterministically by Score = Deal Value × Closure Probability."
-
-        elif intent == "billing_analysis":
-            data_sources = ["Monday.com Work Orders Board"]
-            metrics = AnalyticsEngine.get_billing_analytics(df_wo)
-            calc_method = "Calculated unbilled contract values, pending billing totals, and ranked work orders by invoicing priority score."
-
-        elif intent in ("work_order_analysis", "collection_analysis"):
-            data_sources = ["Monday.com Work Orders Board"]
-            metrics = AnalyticsEngine.work_order_analysis(df_wo)
-            calc_method = "Calculated operational work order counts, billed value, collected amounts, pending billing, and receivables."
-
-        elif intent == "owner_analytics":
-            data_sources = ["Monday.com Deals Board"]
-            metrics = AnalyticsEngine.owner_analytics(df_deals)
-            calc_method = "Aggregated open pipeline value, deal counts, and weighted forecast by BD/KAM personnel code."
-
-        elif intent == "deal_risk_analysis":
-            data_sources = ["Monday.com Deals Board"]
-            custom_prob_threshold = params.get("low_probability_threshold")
-            metrics = AnalyticsEngine.deal_risk_analysis(df_deals, low_prob_threshold=custom_prob_threshold)
-            calc_method = f"Evaluated open deals with deal value >= {metrics.get('high_value_threshold_formatted')} and closure probability <= {metrics.get('low_probability_threshold_pct')}%, calculating combined deal sum and combined weighted sum."
-
-        elif intent == "customer_combined_value_analysis":
-            data_sources = ["Monday.com Deals Board", "Monday.com Work Orders Board"]
-            metrics = AnalyticsEngine.customer_combined_value_analysis(df_deals, df_wo)
-            calc_method = "Joined open deals and active work orders by normalized customer code to compute total commercial value per account."
-
-        elif intent == "cross_board_customer_analysis":
-            data_sources = ["Monday.com Deals Board", "Monday.com Work Orders Board"]
-            metrics = AnalyticsEngine.cross_board_customer_analysis(df_deals, df_wo)
-            calc_method = "Performed cross-board customer entity resolution and set-matching between active work orders and open deals."
-            assumptions.append("Customer names were normalized by stripping company suffixes (LTD, PVT) and punctuation prior to joining.")
-
-        elif intent == "leadership_update":
-            data_sources = ["Monday.com Deals Board", "Monday.com Work Orders Board"]
-            leadership_res = LeadershipService.generate_leadership_summary(df_deals, df_wo, deals_dq, wo_dq)
-            metrics = leadership_res
-            calc_method = "Consolidated cross-functional metrics across sales pipeline, work order execution, billing, and top risks."
-
-        elif intent == "data_quality_report":
-            data_sources = ["Monday.com Deals Board", "Monday.com Work Orders Board"]
-            metrics = {"deals_data_quality": deals_dq.model_dump(), "work_orders_data_quality": wo_dq.model_dump()}
-            calc_method = "Evaluated dataset completeness, missing dates, missing monetary fields, and unmapped statuses."
-
-        else:
-            data_sources = ["Monday.com Deals Board", "Monday.com Work Orders Board"]
-            metrics = AnalyticsEngine.pipeline_overview(df_deals)
-            calc_method = "Default pipeline overview analysis."
-
-        explainability = ExplainabilityMetadata(
-            data_sources=data_sources,
-            filters_applied={"sector": target_sector, "timeframe": timeframe_str},
-            timeframe_resolved=timeframe_label,
-            calculation_method=calc_method,
-            assumptions=assumptions
-        )
-
-        # 5. Generate Executive Explanation via Groq Service
-        if intent == "leadership_update" and "leadership_text" in metrics:
-            answer = metrics["leadership_text"]
-        else:
-            answer = await self.ai_service.generate_explanation(
-                question=question,
-                intent=intent,
-                metrics=metrics,
-                data_quality=dq_report.model_dump(),
-                explainability=explainability.model_dump()
+            explainability = ExplainabilityMetadata(
+                data_sources=data_sources,
+                filters_applied={"sector": primary_params.get("sector"), "timeframe": primary_params.get("timeframe")},
+                timeframe_resolved=tf_label,
+                calculation_method=calc_method,
+                assumptions=[]
             )
 
-        # 6. Filter suggested followups excluding current question
+            if intent == "leadership_update" and "leadership_text" in metrics:
+                answer = metrics["leadership_text"]
+            else:
+                answer = await self.ai_service.generate_explanation(
+                    question=question,
+                    intent=intent,
+                    metrics=metrics,
+                    data_quality=dq_report.model_dump(),
+                    explainability=explainability.model_dump()
+                )
+
+            followups = [q for q in SUGGESTED_QUESTIONS if q.lower() != question.lower()][:4]
+
+            return ChatResponse(
+                answer=answer,
+                intent=intent,
+                data_sources=data_sources,
+                metrics=metrics,
+                data_quality=dq_report,
+                explainability=explainability,
+                suggested_followups=followups
+            )
+
+        # 5. MULTI-INTENT EXECUTION
+        logger.info(f"Orchestrating multi-intent response for {len(detected_intents)} intents...")
+
+        multi_analyses = []
+        combined_sources = set()
+        methods = []
+
+        for item in detected_intents:
+            i_str = item["intent"]
+            p_dict = item["params"]
+            clause_str = item.get("clause", "")
+
+            m_i, sources_i, calc_i, _ = _execute_intent_analytics(i_str, p_dict)
+            combined_sources.update(sources_i)
+            methods.append(f"[{i_str}]: {calc_i}")
+
+            multi_analyses.append({
+                "intent": i_str,
+                "params": p_dict,
+                "clause": clause_str,
+                "metrics": m_i
+            })
+
+        multi_payload = {
+            "intents": [item["intent"] for item in detected_intents],
+            "analyses": multi_analyses
+        }
+
+        explainability = ExplainabilityMetadata(
+            data_sources=list(combined_sources),
+            filters_applied={"multi_intents": [item["intent"] for item in detected_intents]},
+            timeframe_resolved="Multi-intent analysis",
+            calculation_method=" | ".join(methods),
+            assumptions=[]
+        )
+
+        answer = await self.ai_service.generate_multi_intent_explanation(
+            question=question,
+            multi_payload=multi_payload,
+            data_quality=dq_report.model_dump()
+        )
+
+        # Return primary metrics for chart rendering compatibility
+        primary_metrics = multi_analyses[0]["metrics"] if multi_analyses else {}
         followups = [q for q in SUGGESTED_QUESTIONS if q.lower() != question.lower()][:4]
 
         return ChatResponse(
             answer=answer,
-            intent=intent,
-            data_sources=data_sources,
-            metrics=metrics,
+            intent="multi_intent",
+            data_sources=list(combined_sources),
+            metrics=primary_metrics,
             data_quality=dq_report,
             explainability=explainability,
             suggested_followups=followups
