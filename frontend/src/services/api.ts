@@ -38,7 +38,7 @@ export async function sendChatMessage(
     attempt++;
     try {
       if (attempt > 1 && onStatusUpdate) {
-        onStatusUpdate(`Connection interrupted. Retrying analysis (Attempt ${attempt}/${maxRetries + 1})...`);
+        onStatusUpdate(`Analyzing...`);
       }
 
       const response = await fetch(`${API_BASE_URL}/chat`, {

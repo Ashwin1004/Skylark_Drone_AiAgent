@@ -1,7 +1,6 @@
 import pytest
 from app.services.query_understanding import QueryUnderstandingService
 from app.services.agent_orchestrator import AgentOrchestrator
-from app.services.groq_service import is_response_complete
 
 def test_intent_classification_business_queries():
     intent, params = QueryUnderstandingService.classify_intent_and_params("How is our pipeline looking this quarter?")
@@ -17,12 +16,6 @@ def test_intent_classification_business_queries():
 
     intent, params = QueryUnderstandingService.classify_intent_and_params("Which customers have active work orders but no active deals?")
     assert intent == "cross_board_customer_analysis"
-
-def test_response_completeness_validator():
-    assert is_response_complete("Here is a complete sentence.") is True
-    assert is_response_complete("Incomplete sentence ending with a word") is False
-    assert is_response_complete("Header ending with colon:\n- Item 1\n- Item 2.") is True
-    assert is_response_complete("Header ending with colon:\n- ") is False
 
 def test_six_specific_query_scenarios():
     # 1. "How is the Energy sector performing?"

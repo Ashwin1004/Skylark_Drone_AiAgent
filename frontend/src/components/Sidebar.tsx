@@ -164,7 +164,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {activePopover && (
           <div
             ref={popoverRef}
-            className="absolute left-18 top-16 z-50 w-72 bg-[#201d1b] border border-[#36302d] rounded-2xl shadow-2xl p-3.5 animate-in fade-in zoom-in-95 duration-150 text-white space-y-2 max-h-96 overflow-y-auto"
+            className={`absolute left-[72px] ${
+              activePopover === 'pinned' ? 'top-[120px]' : activePopover === 'recents' ? 'top-[160px]' : 'top-[200px]'
+            } z-50 w-72 bg-[#201d1b] border border-[#36302d] rounded-2xl shadow-2xl p-3.5 animate-in fade-in zoom-in-95 duration-150 text-white space-y-2 max-h-96 overflow-y-auto`}
           >
             {/* Popover Header Title */}
             <div className="text-sm font-bold text-[#a69c94] px-2 pt-1 pb-2 border-b border-[#2b2725] uppercase tracking-wider">

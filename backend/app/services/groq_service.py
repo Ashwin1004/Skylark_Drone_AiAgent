@@ -47,27 +47,6 @@ STRICT FORMATTING & COMPLETENESS RULES:
 4. VERIFIED METRICS ONLY: Rely strictly on pre-computed Python metrics in the JSON payload.
 """
 
-def is_response_complete(text: str) -> bool:
-    """
-    Validates that a generated AI response ends with a complete sentence
-    and is not cut off mid-sentence, mid-bullet, or mid-heading.
-    """
-    if not text or not text.strip():
-        return False
-    t = text.strip()
-    
-    last_line = t.split("\n")[-1].strip()
-    
-    # Incomplete headings or dangling bullet prefixes
-    if last_line.startswith("#") or last_line.endswith(":") or last_line.endswith("-") or last_line.endswith("*"):
-        return False
-    
-    # Must end with sentence-ending punctuation (. ! ?)
-    if not re.search(r'[\.\!\?"]\s*$', t):
-        return False
-        
-    return True
-
 class GroqService:
     def __init__(self, api_key: Optional[str] = None):
         self._api_key = api_key
@@ -104,7 +83,7 @@ class GroqService:
     ) -> str:
         """
         Calls Groq LLM API to convert deterministic Pandas metrics into an executive-ready business explanation.
-        Ensures max_tokens is generous (1250) and validates response completeness.
+        Optimized for ultra-fast response latency.
         """
         client = self.client
         if not client:
@@ -150,28 +129,10 @@ Please format a clear, founder-ready executive answer strictly adhering to the s
                     {"role": "user", "content": user_prompt}
                 ],
                 temperature=0.1,
-                max_tokens=750
+                max_tokens=800
             )
             content = response.choices[0].message.content or ""
             content = content.replace("**", "")
-            
-            # Validation for completeness
-            if not is_response_complete(content):
-                logger.warning("Executive explanation appeared incomplete. Requesting completion extension...")
-                completion_res = await client.chat.completions.create(
-                    model=current_model,
-                    messages=[
-                        {"role": "system", "content": SYSTEM_PROMPT},
-                        {"role": "user", "content": user_prompt},
-                        {"role": "assistant", "content": content},
-                        {"role": "user", "content": "Please complete the remaining sentences and sections in full."}
-                    ],
-                    temperature=0.1,
-                    max_tokens=500
-                )
-                extra = completion_res.choices[0].message.content or ""
-                content = (content + "\n" + extra).replace("**", "")
-
             logger.info(f"Successfully received executive response from Groq API (Model: {current_model}).")
             return content
         except Exception as e:
@@ -186,7 +147,7 @@ Please format a clear, founder-ready executive answer strictly adhering to the s
     ) -> str:
         """
         Calls Groq API to generate a multi-intent executive response covering all requested business areas.
-        Uses a large max_tokens limit (2500) and completeness validation to guarantee complete responses.
+        Single fast API execution.
         """
         client = self.client
         if not client:
@@ -215,28 +176,10 @@ Please produce a comprehensive multi-intent executive report addressing EVERY se
                     {"role": "user", "content": user_prompt}
                 ],
                 temperature=0.1,
-                max_tokens=1400
+                max_tokens=1500
             )
             content = response.choices[0].message.content or ""
             content = content.replace("**", "")
-
-            # Validation for completeness
-            if not is_response_complete(content):
-                logger.warning("Multi-intent response appeared incomplete. Requesting completion extension...")
-                completion_res = await client.chat.completions.create(
-                    model=current_model,
-                    messages=[
-                        {"role": "system", "content": MULTI_INTENT_SYSTEM_PROMPT},
-                        {"role": "user", "content": user_prompt},
-                        {"role": "assistant", "content": content},
-                        {"role": "user", "content": "Please complete the remaining sentences and sections in full."}
-                    ],
-                    temperature=0.1,
-                    max_tokens=800
-                )
-                extra = completion_res.choices[0].message.content or ""
-                content = (content + "\n" + extra).replace("**", "")
-
             logger.info(f"Successfully received multi-intent response from Groq API (Model: {current_model}).")
             return content
         except Exception as e:

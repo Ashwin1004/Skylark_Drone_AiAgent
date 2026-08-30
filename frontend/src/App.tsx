@@ -204,24 +204,27 @@ export const App: React.FC = () => {
 
     const requestId = existingRequestId || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `req_${Date.now()}`);
 
-    // Check if user message is already in thread
-    const userAlreadyInThread = messages.some(m => m.content.trim() === query.trim());
-    let nextMessages = messages;
+    const userMsg: Message = {
+      id: Date.now().toString(),
+      role: 'user',
+      content: query.trim(),
+      timestamp: new Date().toISOString(),
+    };
 
-    if (!userAlreadyInThread) {
-      const userMsg: Message = {
-        id: Date.now().toString(),
-        role: 'user',
-        content: query.trim(),
-        timestamp: new Date().toISOString(),
-      };
-      nextMessages = [...messages, userMsg];
-      setMessages(nextMessages);
-    }
+    // Only skip appending user message if this is a reload recovery of the exact active turn
+    const isReloadRecovery = Boolean(
+      existingRequestId && 
+      messages.length > 0 && 
+      messages[messages.length - 1].role === 'user' && 
+      messages[messages.length - 1].content.trim() === query.trim()
+    );
+
+    const nextMessages = isReloadRecovery ? messages : [...messages, userMsg];
+    setMessages(nextMessages);
 
     setIsLoading(true);
     setLoadingConversationId(currentConvId);
-    setLoadingStatusText('Analyzing your business data...');
+    setLoadingStatusText('Analyzing...');
 
     // Persist active request to localStorage
     localStorage.setItem(ACTIVE_REQ_KEY, JSON.stringify({
@@ -231,15 +234,6 @@ export const App: React.FC = () => {
       status: 'loading',
       timestamp: new Date().toISOString()
     }));
-
-    // Cold start status timers
-    const coldStartTimer = setTimeout(() => {
-      setLoadingStatusText("Connecting to Skylark's analysis service...");
-    }, 3000);
-
-    const longWaitTimer = setTimeout(() => {
-      setLoadingStatusText("Analysis is taking a little longer than usual...");
-    }, 6000);
 
     abortControllerRef.current = new AbortController();
 
@@ -251,9 +245,6 @@ export const App: React.FC = () => {
         requestId,
         (msg) => setLoadingStatusText(msg)
       );
-
-      clearTimeout(coldStartTimer);
-      clearTimeout(longWaitTimer);
 
       const assistantMsg: Message = {
         id: (Date.now() + 1).toString(),
@@ -268,9 +259,6 @@ export const App: React.FC = () => {
       saveConversationSession(finalMessages, currentConvId);
       localStorage.removeItem(ACTIVE_REQ_KEY);
     } catch (err: any) {
-      clearTimeout(coldStartTimer);
-      clearTimeout(longWaitTimer);
-
       if (err.message === 'Generation stopped by user.') {
         const stoppedMsg: Message = {
           id: (Date.now() + 1).toString(),
